@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="SPKR — Share your voice with the community. Submit posts that get published to our Instagram.">
+    <title>{% block title %}SPKR — Community Posts{% endblock %}</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body>
+    <!-- Navbar -->
+    <nav class="navbar" id="main-navbar">
+        <div class="nav-container">
+            <a href="{{ url_for('main.index') }}" class="nav-logo">
+                <span class="logo-icon"><i class="bi bi-megaphone-fill"></i></span>
+                <span class="logo-text">SPKR</span>
+            </a>
+            <div class="nav-links">
+                <a href="{{ url_for('main.index') }}"
+                    class="nav-link {% if request.endpoint == 'main.index' %}active{% endif %}">Submit</a>
+                <a href="{{ url_for('main.track_submission') }}"
+                    class="nav-link {% if request.endpoint == 'main.track_submission' %}active{% endif %}">Track</a>
+                <a href="{{ url_for('main.about') }}"
+                    class="nav-link {% if request.endpoint == 'main.about' %}active{% endif %}">About</a>
+                <a href="{{ url_for('main.terms') }}"
+                    class="nav-link {% if request.endpoint == 'main.terms' %}active{% endif %}">Terms</a>
+            </div>
+            <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
+                <i class="bi bi-list"></i>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Mobile Nav -->
+    <div class="mobile-nav" id="mobileNav">
+        <a href="{{ url_for('main.index') }}" class="mobile-nav-link">Submit</a>
+        <a href="{{ url_for('main.track_submission') }}" class="mobile-nav-link">Track</a>
+        <a href="{{ url_for('main.about') }}" class="mobile-nav-link">About</a>
+        <a href="{{ url_for('main.terms') }}" class="mobile-nav-link">Terms</a>
+    </div>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-container">
+        {% for category, message in messages %}
+        <div class="flash-message flash-{{ category }}" onclick="this.remove()">
+            <span class="flash-icon">
+                {% if category == 'success' %}<i class="bi bi-check-circle-fill"></i>
+                {% elif category == 'error' %}<i class="bi bi-exclamation-circle-fill"></i>
+                {% elif category == 'warning' %}<i class="bi bi-exclamation-triangle-fill"></i>
+                {% else %}<i class="bi bi-info-circle-fill"></i>{% endif %}
+            </span>
+            <span>{{ message }}</span>
+            <button class="flash-close"><i class="bi bi-x"></i></button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <!-- Main Content -->
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-brand">
+                <span class="logo-icon"><i class="bi bi-megaphone-fill"></i></span>
+                <span class="logo-text">SPKR</span>
+            </div>
+            <p class="footer-text">&copy; 2026 SPKR. Community-powered content platform.</p>
+            <div class="footer-links">
+                <a href="{{ url_for('main.terms') }}">Terms</a>
+                <a href="{{ url_for('main.about') }}">About</a>
+            </div>
+        </div>
+    </footer>
+
+    {% block extra_js %}{% endblock %}
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+
+</html>

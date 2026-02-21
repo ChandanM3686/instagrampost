@@ -23,6 +23,8 @@
 # misc
 .DS_Store
 *.pem
+Thumbs.db
+desktop.ini
 
 # debug
 npm-debug.log*
@@ -30,7 +32,7 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files
 .env*
 
 # vercel
@@ -39,3 +41,24 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+venv/
+env/
+.venv/
+instance/
+*.db
+*.sqlite3
+uploads/
+*.log
+check_token.py
+gemini.py
+*_fixed.jpg
+
+# IDE
+.vscode/
+.idea/

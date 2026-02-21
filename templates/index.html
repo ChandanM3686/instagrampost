@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block title %}SPKR — Submit Your Post{% endblock %}
+
+{% block extra_css %}
+{% if recaptcha_key %}
+<script src="https://www.google.com/recaptcha/api.js" async defer></script>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero" id="hero-section">
+    <div class="hero-bg-effects">
+        <div class="hero-orb hero-orb-1"></div>
+        <div class="hero-orb hero-orb-2"></div>
+        <div class="hero-orb hero-orb-3"></div>
+    </div>
+    <div class="hero-content">
+        <h1 class="hero-title">
+            <span class="hero-title-line">Speak Your</span>
+            <span class="hero-title-line gradient-text">Mind</span>
+        </h1>
+        <p class="hero-subtitle">Submit your content and get featured on our Instagram. Free or promotional — your voice
+            matters.</p>
+        <a href="#submit-section" class="hero-cta">
+            <i class="bi bi-arrow-down-circle"></i> Submit Now
+        </a>
+    </div>
+</section>
+
+<!-- How It Works -->
+<section class="how-it-works" id="how-section">
+    <h2 class="section-title">How It Works</h2>
+    <div class="steps-grid">
+        <div class="step-card">
+            <div class="step-number">01</div>
+            <div class="step-icon"><i class="bi bi-cloud-upload"></i></div>
+            <h3>Upload</h3>
+            <p>Upload your image and write a caption for your post.</p>
+        </div>
+        <div class="step-card">
+            <div class="step-number">02</div>
+            <div class="step-icon"><i class="bi bi-shield-check"></i></div>
+            <h3>Review</h3>
+            <p>Our moderation system reviews your content automatically.</p>
+        </div>
+        <div class="step-card">
+            <div class="step-number">03</div>
+            <div class="step-icon"><i class="bi bi-instagram"></i></div>
+            <h3>Published</h3>
+            <p>Once approved, your post goes live on our Instagram page!</p>
+        </div>
+    </div>
+</section>
+
+<!-- Submission Form -->
+<section class="submit-section" id="submit-section">
+    <div class="form-container">
+        <div class="form-header">
+            <h2 class="form-title">Submit Your Post</h2>
+            <p class="form-subtitle">Fill in the details below to submit your content</p>
+        </div>
+
+        <form action="{{ url_for('main.submit') }}" method="POST" enctype="multipart/form-data" id="submission-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <!-- Name -->
+            <div class="form-group">
+                <label for="name" class="form-label">
+                    <i class="bi bi-person"></i> Name <span class="optional-badge">Optional</span>
+                </label>
+                <input type="text" id="name" name="name" class="form-input"
+                    placeholder="Your name (displayed with post)">
+            </div>
+
+            <!-- Email -->
+            <div class="form-group">
+                <label for="email" class="form-label">
+                    <i class="bi bi-envelope"></i> Email <span class="optional-badge" id="email-badge">Optional</span>
+                </label>
+                <input type="email" id="email" name="email" class="form-input"
+                    placeholder="For tracking your submission & payment receipts">
+                <small id="email-note" style="display:none; color: var(--warning); font-size: 0.8rem; margin-top: 6px;">
+                    ⚠️ Email is required for promotional posts (to verify your payment)
+                </small>
+            </div>
+
+            <!-- Image Upload -->
+            <div class="form-group">
+                <label for="image" class="form-label">
+                    <i class="bi bi-image"></i> Image <span class="required-badge">Required</span>
+                </label>
+                <div class="upload-zone" id="image-upload-zone">
+                    <input type="file" id="image" name="image" accept="image/*" required class="file-input">
+                    <div class="upload-placeholder" id="image-placeholder">
+                        <i class="bi bi-cloud-arrow-up"></i>
+                        <p>Drag & drop or click to upload</p>
+                        <span>PNG, JPG, GIF, WebP — Max 16MB</span>
+                    </div>
+                    <div class="upload-preview" id="image-preview" style="display:none;">
+                        <img id="image-preview-img" src="" alt="Preview">
+                        <button type="button" class="remove-file" onclick="removeImage()"><i
+                                class="bi bi-x-circle-fill"></i></button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Video Upload -->
+            <div class="form-group">
+                <label for="video" class="form-label">
+                    <i class="bi bi-camera-video"></i> Video <span class="optional-badge">Optional</span>
+                </label>
+                <div class="upload-zone upload-zone-sm" id="video-upload-zone">
+                    <input type="file" id="video" name="video" accept="video/*" class="file-input">
+                    <div class="upload-placeholder" id="video-placeholder">
+                        <i class="bi bi-film"></i>
+                        <p>Upload a video (optional)</p>
+                        <span>MP4, MOV, AVI — Max 16MB</span>
+                    </div>
+                    <div class="upload-preview-name" id="video-preview" style="display:none;">
+                        <i class="bi bi-file-earmark-play-fill"></i>
+                        <span id="video-name"></span>
+                        <button type="button" class="remove-file-sm" onclick="removeVideo()"><i
+                                class="bi bi-x"></i></button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Caption -->
+            <div class="form-group">
+                <label for="caption" class="form-label">
+                    <i class="bi bi-chat-text"></i> Caption <span class="required-badge">Required</span>
+                </label>
+                <textarea id="caption" name="caption" class="form-textarea" rows="4" maxlength="2200" required
+                    placeholder="Write your caption here... Max 2200 characters"></textarea>
+                <div class="char-count"><span id="char-count">0</span>/2200</div>
+            </div>
+
+            <!-- Post Type -->
+            <div class="form-group">
+                <label class="form-label">
+                    <i class="bi bi-tag"></i> Post Type
+                </label>
+                <div class="post-type-selector">
+                    <label class="type-option selected" id="type-free">
+                        <input type="radio" name="post_type" value="free" checked>
+                        <div class="type-card">
+                            <div class="type-icon"><i class="bi bi-gift"></i></div>
+                            <div class="type-info">
+                                <h4>Free Post</h4>
+                                <p>Standard community post</p>
+                            </div>
+                            <div class="type-price">Free</div>
+                        </div>
+                    </label>
+                    <label class="type-option" id="type-promo">
+                        <input type="radio" name="post_type" value="promotional">
+                        <div class="type-card">
+                            <div class="type-icon"><i class="bi bi-rocket-takeoff"></i></div>
+                            <div class="type-info">
+                                <h4>Promotional Post</h4>
+                                <p>Priority review & publishing</p>
+                            </div>
+                            <div class="type-price">$1–$2</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Promo Amount (hidden by default) -->
+            <div class="form-group promo-options" id="promo-options" style="display:none;">
+                <label for="promo_amount" class="form-label">
+                    <i class="bi bi-currency-dollar"></i> Amount
+                </label>
+                <div class="amount-selector">
+                    <button type="button" class="amount-btn active" data-amount="1.00"
+                        onclick="setAmount(this, 1.00)">$1.00</button>
+                    <button type="button" class="amount-btn" data-amount="1.50"
+                        onclick="setAmount(this, 1.50)">$1.50</button>
+                    <button type="button" class="amount-btn" data-amount="2.00"
+                        onclick="setAmount(this, 2.00)">$2.00</button>
+                </div>
+                <input type="hidden" name="promo_amount" id="promo_amount" value="1.00">
+            </div>
+
+            <!-- reCAPTCHA -->
+            {% if recaptcha_key %}
+            <div class="form-group">
+                <div class="g-recaptcha" data-sitekey="{{ recaptcha_key }}" data-theme="dark"></div>
+            </div>
+            {% endif %}
+
+            <!-- Submit Button -->
+            <button type="submit" class="submit-btn" id="submit-btn">
+                <span class="btn-text">Submit Post</span>
+                <span class="btn-loader" style="display:none;"><i class="bi bi-arrow-repeat spin"></i>
+                    Submitting...</span>
+            </button>
+        </form>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/submission.js') }}"></script>
+{% endblock %}

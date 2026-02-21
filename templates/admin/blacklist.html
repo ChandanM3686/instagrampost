@@ -1,0 +1,87 @@
+{% extends "admin/base.html" %}
+{% block title %}SPKR Admin — Blacklist{% endblock %}
+
+{% block content %}
+<div class="admin-header">
+    <h1><i class="bi bi-shield-exclamation"></i> Blacklisted Keywords</h1>
+    <p>Manage keywords that are automatically blocked from submissions</p>
+</div>
+
+<!-- Add Keyword Form -->
+<div class="detail-card mb-4">
+    <h3><i class="bi bi-plus-circle"></i> Add Keyword</h3>
+    <form method="POST" action="{{ url_for('admin.add_blacklist') }}" class="d-flex gap-3 align-items-end flex-wrap">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="flex-grow-1">
+            <label class="form-label">Keyword / Phrase</label>
+            <input type="text" name="keyword" class="form-control" required placeholder="Enter keyword to block">
+        </div>
+        <div>
+            <label class="form-label">Category</label>
+            <select name="category" class="form-select">
+                <option value="general">General</option>
+                <option value="hate">Hate Speech</option>
+                <option value="spam">Spam</option>
+                <option value="adult">Adult Content</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-danger">
+            <i class="bi bi-plus-lg"></i> Add
+        </button>
+    </form>
+</div>
+
+<!-- Keywords Table -->
+<div class="table-responsive">
+    <table class="table admin-table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Keyword</th>
+                <th>Category</th>
+                <th>Status</th>
+                <th>Added</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for kw in keywords %}
+            <tr class="{{ 'opacity-50' if not kw.is_active }}">
+                <td>{{ kw.id }}</td>
+                <td><code>{{ kw.keyword }}</code></td>
+                <td><span class="badge bg-secondary">{{ kw.category }}</span></td>
+                <td>
+                    <span class="badge {{ 'bg-success' if kw.is_active else 'bg-secondary' }}">
+                        {{ 'Active' if kw.is_active else 'Inactive' }}
+                    </span>
+                </td>
+                <td><small>{{ kw.created_at.strftime('%b %d, %Y') }}</small></td>
+                <td>
+                    <div class="d-flex gap-1">
+                        <form method="POST" action="{{ url_for('admin.toggle_blacklist', bk_id=kw.id) }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit"
+                                class="btn btn-sm {{ 'btn-outline-warning' if kw.is_active else 'btn-outline-success' }}">
+                                {{ 'Disable' if kw.is_active else 'Enable' }}
+                            </button>
+                        </form>
+                        <form method="POST" action="{{ url_for('admin.delete_blacklist', bk_id=kw.id) }}"
+                            onsubmit="return confirm('Delete this keyword?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not keywords %}
+            <tr>
+                <td colspan="6" class="text-center text-muted py-4">No blacklisted keywords</td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

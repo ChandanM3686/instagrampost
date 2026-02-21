@@ -1,0 +1,473 @@
+{% extends "admin/base.html" %}
+{% block title %}SPKR Admin — Submission #{{ submission.id }}{% endblock %}
+
+{% block content %}
+<div class="admin-header">
+    <h1>
+        <a href="{{ url_for('admin.submissions') }}" class="text-decoration-none"><i class="bi bi-arrow-left"></i></a>
+        Submission #{{ submission.id }}
+    </h1>
+    <div class="d-flex gap-2 align-items-center">
+        <span class="badge status-{{ submission.status }} fs-6">{{ submission.status }}</span>
+        <span class="badge {{ 'bg-success' if submission.post_type == 'free' else 'bg-warning text-dark' }} fs-6">{{
+            submission.post_type }}</span>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Left: Media & Caption -->
+    <div class="col-lg-7">
+        <div class="detail-card">
+            <h3><i class="bi bi-image"></i> Media</h3>
+            <div class="detail-media">
+                <img src="{{ url_for('admin.serve_media', filepath=submission.image_path) }}" class="detail-image"
+                    alt="Submission image">
+            </div>
+            {% if submission.video_path %}
+            <div class="detail-media mt-3">
+                <video controls class="detail-video">
+                    <source src="{{ url_for('admin.serve_media', filepath=submission.video_path) }}">
+                </video>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Caption Edit & Actions -->
+        <div class="detail-card mt-3">
+            <h3><i class="bi bi-chat-text"></i> Caption</h3>
+
+            {% if submission.status in ['pending', 'flagged'] %}
+            <form method="POST" action="{{ url_for('admin.approve_submission', sub_id=submission.id) }}"
+                id="approve-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <textarea name="caption" class="form-control admin-textarea" id="caption-textarea"
+                    rows="4">{{ submission.caption }}</textarea>
+                <small class="text-muted">Edit caption before approving (optional)</small>
+
+                <!-- AI Caption Generation -->
+                <div class="mt-3 p-3"
+                    style="background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(168,85,247,0.1)); border-radius: 12px; border: 1px solid rgba(99,102,241,0.2);">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <i class="bi bi-stars" style="color: #a855f7; font-size: 1.2rem;"></i>
+                        <strong style="color: #a855f7;">AI Caption Generator</strong>
+                        <span class="badge"
+                            style="background: linear-gradient(135deg, #6366f1, #a855f7); font-size: 0.7rem;">Gemini</span>
+                    </div>
+
+                    <div class="d-flex gap-2 mb-2 flex-wrap">
+                        <select id="caption-style" class="form-select form-select-sm"
+                            style="width: auto; min-width: 140px;">
+                            <option value="engaging">🔥 Engaging</option>
+                            <option value="minimal">✨ Minimal</option>
+                            <option value="storytelling">📖 Storytelling</option>
+                            <option value="funny">😄 Funny</option>
+                            <option value="professional">💼 Professional</option>
+                        </select>
+                        <button type="button" class="btn btn-sm" onclick="generateCaption()" id="btn-generate"
+                            style="background: linear-gradient(135deg, #6366f1, #a855f7); color: white; border: none;">
+                            <i class="bi bi-stars"></i> Generate from Image
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="enhanceCaption()"
+                            id="btn-enhance">
+                            <i class="bi bi-magic"></i> Enhance Current
+                        </button>
+                    </div>
+                    <div id="ai-status" style="display: none;" class="mt-2">
+                        <small class="text-muted"><i class="bi bi-hourglass-split"></i> <span
+                                id="ai-status-text">Generating...</span></small>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2 mt-3">
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check-circle"></i> Approve
+                    </button>
+                    <button type="button" class="btn btn-danger" onclick="rejectSubmission()">
+                        <i class="bi bi-x-circle"></i> Reject
+                    </button>
+                </div>
+            </form>
+
+            <form method="POST" action="{{ url_for('admin.reject_submission', sub_id=submission.id) }}" id="reject-form"
+                style="display:none;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            </form>
+            {% elif submission.status in ['approved'] %}
+            <div class="caption-display">{{ submission.caption }}</div>
+            {% if submission.original_caption and submission.original_caption != submission.caption %}
+            <div class="mt-2">
+                <small class="text-muted">Original caption:</small>
+                <div class="caption-display caption-original">{{ submission.original_caption }}</div>
+            </div>
+            {% endif %}
+
+            <!-- AI Caption for approved posts too (before publishing) -->
+            <div class="mt-3 p-3"
+                style="background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(168,85,247,0.1)); border-radius: 12px; border: 1px solid rgba(99,102,241,0.2);">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <i class="bi bi-stars" style="color: #a855f7; font-size: 1.2rem;"></i>
+                    <strong style="color: #a855f7;">AI Caption Generator</strong>
+                </div>
+                <div class="d-flex gap-2 mb-2 flex-wrap">
+                    <select id="caption-style" class="form-select form-select-sm" style="width: auto;">
+                        <option value="engaging">🔥 Engaging</option>
+                        <option value="minimal">✨ Minimal</option>
+                        <option value="storytelling">📖 Storytelling</option>
+                        <option value="funny">😄 Funny</option>
+                        <option value="professional">💼 Professional</option>
+                    </select>
+                    <button type="button" class="btn btn-sm" onclick="generateCaption()" id="btn-generate"
+                        style="background: linear-gradient(135deg, #6366f1, #a855f7); color: white; border: none;">
+                        <i class="bi bi-stars"></i> Generate from Image
+                    </button>
+                </div>
+                <div id="ai-caption-preview" style="display: none;" class="mt-2">
+                    <textarea id="ai-generated-caption" class="form-control admin-textarea" rows="4"
+                        readonly></textarea>
+                    <div class="d-flex gap-2 mt-2">
+                        <button type="button" class="btn btn-sm btn-success" onclick="useAiCaption()">
+                            <i class="bi bi-check"></i> Use This Caption
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                            onclick="document.getElementById('ai-caption-preview').style.display='none'">
+                            Dismiss
+                        </button>
+                    </div>
+                </div>
+                <div id="ai-status" style="display: none;" class="mt-2">
+                    <small class="text-muted"><i class="bi bi-hourglass-split"></i> <span
+                            id="ai-status-text">Generating...</span></small>
+                </div>
+            </div>
+            {% else %}
+            <div class="caption-display">{{ submission.caption }}</div>
+            {% if submission.original_caption and submission.original_caption != submission.caption %}
+            <div class="mt-2">
+                <small class="text-muted">Original caption:</small>
+                <div class="caption-display caption-original">{{ submission.original_caption }}</div>
+            </div>
+            {% endif %}
+            {% endif %}
+        </div>
+
+        <!-- Publish to Instagram -->
+        {% if submission.status in ['approved', 'pending', 'flagged'] %}
+        <div class="detail-card mt-3">
+            <h3><i class="bi bi-instagram"></i> Publish to Instagram</h3>
+            <form method="POST" action="{{ url_for('admin.publish_submission', sub_id=submission.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <!-- AI Auto-Caption Settings -->
+                <div class="mb-3 p-3"
+                    style="background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(168,85,247,0.1)); border-radius: 12px; border: 1px solid rgba(99,102,241,0.2);">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-stars" style="color: #a855f7; font-size: 1.2rem;"></i>
+                            <strong style="color: #a855f7;">AI Auto-Caption</strong>
+                            <span class="badge"
+                                style="background: linear-gradient(135deg, #6366f1, #a855f7); font-size: 0.7rem;">Gemini
+                                2.5</span>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="auto_caption" id="auto-caption-toggle"
+                                value="on" checked>
+                            <label class="form-check-label text-muted" for="auto-caption-toggle">Enabled</label>
+                        </div>
+                    </div>
+                    <div id="caption-style-section">
+                        <select name="caption_style" class="form-select form-select-sm" style="width: auto;">
+                            <option value="engaging">🔥 Engaging</option>
+                            <option value="minimal">✨ Minimal</option>
+                            <option value="storytelling">📖 Storytelling</option>
+                            <option value="funny">😄 Funny</option>
+                            <option value="professional">💼 Professional</option>
+                        </select>
+                        <small class="text-muted d-block mt-1">Gemini will analyze the image and auto-generate a caption
+                            with hashtags before publishing.</small>
+                    </div>
+                </div>
+
+                <!-- One-click publish button -->
+                <button type="submit" class="btn btn-primary btn-lg w-100 mb-3"
+                    style="background: linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045); border: none; font-size: 1.1rem;">
+                    <i class="bi bi-send-fill"></i> 🤖 Auto-Caption & Publish to Instagram
+                </button>
+                <small class="text-muted d-block mb-3">
+                    Gemini generates caption → Image auto-fixed → Uploaded → Published to Instagram ✨
+                </small>
+
+                <!-- Advanced: manual URL entry -->
+                <div class="mt-2">
+                    <a href="#"
+                        onclick="document.getElementById('manual-url-section').style.display = document.getElementById('manual-url-section').style.display === 'none' ? 'block' : 'none'; return false;"
+                        class="text-muted small">
+                        <i class="bi bi-gear"></i> Advanced: Use manual image URL
+                    </a>
+                    <div id="manual-url-section" style="display: none;" class="mt-2">
+                        <div class="mb-3">
+                            <label class="form-label">Public Image URL</label>
+                            <input type="url" name="image_url" class="form-control"
+                                placeholder="https://yourdomain.com/uploads/images/...">
+                        </div>
+                        {% if submission.video_path %}
+                        <div class="mb-3">
+                            <label class="form-label">Public Video URL</label>
+                            <input type="url" name="video_url" class="form-control"
+                                placeholder="https://yourdomain.com/uploads/videos/...">
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </form>
+        </div>
+        {% endif %}
+
+        {% if submission.instagram_post_id %}
+        <div class="detail-card mt-3">
+            <h3><i class="bi bi-instagram"></i> Published</h3>
+            <p><strong>Instagram Post ID:</strong> {{ submission.instagram_post_id }}</p>
+            <p><strong>Published at:</strong> {{ submission.published_at.strftime('%b %d, %Y %H:%M') if
+                submission.published_at else 'N/A' }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Right: Metadata & Moderation -->
+    <div class="col-lg-5">
+        <!-- Submission Info -->
+        <div class="detail-card">
+            <h3><i class="bi bi-info-circle"></i> Details</h3>
+            <div class="detail-row">
+                <span class="detail-label">Submitter</span>
+                <span class="detail-value">{{ submission.submitter_name or 'Anonymous' }}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Email</span>
+                <span class="detail-value">{{ submission.submitter_email or '—' }}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">IP</span>
+                <span class="detail-value"><code>{{ submission.submitter_ip or '—' }}</code></span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Submitted</span>
+                <span class="detail-value">{{ submission.created_at.strftime('%b %d, %Y %H:%M:%S') }}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Image Hash</span>
+                <span
+                    class="detail-value"><code>{{ submission.image_hash[:16] if submission.image_hash else '—' }}...</code></span>
+            </div>
+            {% if submission.post_type == 'promotional' %}
+            <div class="detail-row">
+                <span class="detail-label">Amount</span>
+                <span class="detail-value">${{ "%.2f"|format(submission.promo_amount or 0) }}</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Payment Info (if promotional) -->
+        {% if submission.payment %}
+        <div class="detail-card mt-3">
+            <h3><i class="bi bi-credit-card"></i> Payment</h3>
+            <div class="detail-row">
+                <span class="detail-label">Status</span>
+                <span
+                    class="badge {{ 'bg-success' if submission.payment.status == 'completed' else 'bg-warning text-dark' }}">
+                    {{ submission.payment.status }}
+                </span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Amount</span>
+                <span class="detail-value">${{ "%.2f"|format(submission.payment.amount) }}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Session ID</span>
+                <span
+                    class="detail-value"><code>{{ submission.payment.stripe_session_id[:24] if submission.payment.stripe_session_id else '—' }}...</code></span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Payer Email</span>
+                <span class="detail-value">{{ submission.payment.payer_email or '—' }}</span>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Moderation Results -->
+        <div class="detail-card mt-3">
+            <h3><i class="bi bi-shield-check"></i> Moderation</h3>
+            <div class="detail-row">
+                <span class="detail-label">Score</span>
+                <span
+                    class="mod-score {{ 'score-good' if (submission.moderation_score or 0) < 0.5 else 'score-warn' if (submission.moderation_score or 0) < 1.5 else 'score-bad' }}">
+                    {{ "%.1f"|format(submission.moderation_score or 0) }}
+                </span>
+            </div>
+
+            {% for log in mod_logs %}
+            <div class="mod-log-item">
+                <div class="mod-check-header">
+                    <span
+                        class="mod-check-icon {{ 'text-success' if log.result == 'pass' else 'text-warning' if log.result == 'warning' else 'text-danger' }}">
+                        {% if log.result == 'pass' %}<i class="bi bi-check-circle-fill"></i>
+                        {% elif log.result == 'warning' %}<i class="bi bi-exclamation-triangle-fill"></i>
+                        {% else %}<i class="bi bi-x-circle-fill"></i>{% endif %}
+                    </span>
+                    <span class="mod-check-type">{{ log.check_type }}</span>
+                    <span
+                        class="badge {{ 'bg-success' if log.result == 'pass' else 'bg-warning text-dark' if log.result == 'warning' else 'bg-danger' }}">
+                        {{ log.result }}
+                    </span>
+                </div>
+                <p class="mod-check-detail">{{ log.details }}</p>
+            </div>
+            {% endfor %}
+            {% if not mod_logs %}
+            <p class="text-muted">No moderation logs available.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+    const SUB_ID = {{ submission.id }};
+    const CSRF_TOKEN = '{{ csrf_token() }}';
+
+    function rejectSubmission() {
+        if (confirm('Are you sure you want to reject this submission?')) {
+            document.getElementById('reject-form').submit();
+        }
+    }
+
+    function showAiStatus(msg) {
+        const status = document.getElementById('ai-status');
+        const text = document.getElementById('ai-status-text');
+        if (status && text) {
+            status.style.display = 'block';
+            text.textContent = msg;
+        }
+    }
+
+    function hideAiStatus() {
+        const status = document.getElementById('ai-status');
+        if (status) status.style.display = 'none';
+    }
+
+    async function generateCaption() {
+        const style = document.getElementById('caption-style').value;
+        const btn = document.getElementById('btn-generate');
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating...';
+        showAiStatus('🤖 Gemini is analyzing the image and generating a caption...');
+
+        try {
+            const formData = new FormData();
+            formData.append('caption_style', style);
+            formData.append('csrf_token', CSRF_TOKEN);
+
+            const response = await fetch(`/admin/submissions/${SUB_ID}/generate-caption`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                // Put the generated caption in the textarea
+                const textarea = document.getElementById('caption-textarea');
+                const previewArea = document.getElementById('ai-generated-caption');
+                const preview = document.getElementById('ai-caption-preview');
+
+                if (textarea) {
+                    textarea.value = data.caption;
+                    textarea.style.borderColor = '#a855f7';
+                    setTimeout(() => textarea.style.borderColor = '', 2000);
+                } else if (previewArea && preview) {
+                    previewArea.value = data.caption;
+                    preview.style.display = 'block';
+                }
+                showAiStatus('✅ Caption generated successfully!');
+                setTimeout(hideAiStatus, 3000);
+            } else {
+                showAiStatus('❌ Error: ' + (data.error || 'Unknown error'));
+                setTimeout(hideAiStatus, 5000);
+            }
+        } catch (err) {
+            showAiStatus('❌ Network error: ' + err.message);
+            setTimeout(hideAiStatus, 5000);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-stars"></i> Generate from Image';
+        }
+    }
+
+    async function enhanceCaption() {
+        const textarea = document.getElementById('caption-textarea');
+        if (!textarea) return;
+
+        const btn = document.getElementById('btn-enhance');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Enhancing...';
+        showAiStatus('✨ Enhancing your caption with AI...');
+
+        try {
+            const formData = new FormData();
+            formData.append('current_caption', textarea.value);
+            formData.append('csrf_token', CSRF_TOKEN);
+
+            const response = await fetch(`/admin/submissions/${SUB_ID}/enhance-caption`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                textarea.value = data.caption;
+                textarea.style.borderColor = '#a855f7';
+                setTimeout(() => textarea.style.borderColor = '', 2000);
+                showAiStatus('✅ Caption enhanced!');
+                setTimeout(hideAiStatus, 3000);
+            } else {
+                showAiStatus('❌ Error: ' + (data.error || 'Unknown error'));
+                setTimeout(hideAiStatus, 5000);
+            }
+        } catch (err) {
+            showAiStatus('❌ Network error: ' + err.message);
+            setTimeout(hideAiStatus, 5000);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-magic"></i> Enhance Current';
+        }
+    }
+
+    function useAiCaption() {
+        const aiCaption = document.getElementById('ai-generated-caption');
+        if (aiCaption) {
+            // For approved posts, we need to update the caption in the DB
+            const formData = new FormData();
+            formData.append('caption', aiCaption.value);
+            formData.append('csrf_token', CSRF_TOKEN);
+
+            // Update caption via approve route (re-approve with new caption)
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = `/admin/submissions/${SUB_ID}/approve`;
+
+            const captionInput = document.createElement('input');
+            captionInput.type = 'hidden';
+            captionInput.name = 'caption';
+            captionInput.value = aiCaption.value;
+            form.appendChild(captionInput);
+
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrf_token';
+            csrfInput.value = CSRF_TOKEN;
+            form.appendChild(csrfInput);
+
+            document.body.appendChild(form);
+            form.submit();
+        }
+    }
+</script>
+{% endblock %}

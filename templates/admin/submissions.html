@@ -1,0 +1,135 @@
+{% extends "admin/base.html" %}
+{% block title %}SPKR Admin — Submissions{% endblock %}
+
+{% block content %}
+<div class="admin-header">
+    <h1><i class="bi bi-inbox-fill"></i> Submissions</h1>
+    <p>Manage community submissions</p>
+</div>
+
+<!-- Filters -->
+<div class="filter-bar">
+    <div class="filter-group">
+        <label>Status:</label>
+        <div class="filter-pills">
+            <a href="{{ url_for('admin.submissions', status='all', type=current_type) }}"
+                class="filter-pill {{ 'active' if current_status == 'all' }}">All</a>
+            <a href="{{ url_for('admin.submissions', status='pending', type=current_type) }}"
+                class="filter-pill {{ 'active' if current_status == 'pending' }}">Pending</a>
+            <a href="{{ url_for('admin.submissions', status='approved', type=current_type) }}"
+                class="filter-pill {{ 'active' if current_status == 'approved' }}">Approved</a>
+            <a href="{{ url_for('admin.submissions', status='published', type=current_type) }}"
+                class="filter-pill {{ 'active' if current_status == 'published' }}">Published</a>
+            <a href="{{ url_for('admin.submissions', status='rejected', type=current_type) }}"
+                class="filter-pill {{ 'active' if current_status == 'rejected' }}">Rejected</a>
+            <a href="{{ url_for('admin.submissions', status='flagged', type=current_type) }}"
+                class="filter-pill {{ 'active' if current_status == 'flagged' }}">Flagged</a>
+        </div>
+    </div>
+    <div class="filter-group">
+        <label>Type:</label>
+        <div class="filter-pills">
+            <a href="{{ url_for('admin.submissions', status=current_status, type='all') }}"
+                class="filter-pill {{ 'active' if current_type == 'all' }}">All</a>
+            <a href="{{ url_for('admin.submissions', status=current_status, type='free') }}"
+                class="filter-pill {{ 'active' if current_type == 'free' }}">Free</a>
+            <a href="{{ url_for('admin.submissions', status=current_status, type='promotional') }}"
+                class="filter-pill {{ 'active' if current_type == 'promotional' }}">Paid</a>
+        </div>
+    </div>
+</div>
+
+<!-- Submissions Table -->
+<div class="table-responsive">
+    <table class="table admin-table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Preview</th>
+                <th>Caption</th>
+                <th>Submitter</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Mod Score</th>
+                <th>Date</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sub in submissions.items %}
+            <tr>
+                <td>{{ sub.id }}</td>
+                <td>
+                    <img src="{{ url_for('admin.serve_media', filepath=sub.image_path) }}" class="thumb-preview"
+                        alt="Preview">
+                </td>
+                <td class="caption-cell">{{ sub.caption[:60] }}{% if sub.caption|length > 60 %}...{% endif %}</td>
+                <td>
+                    <small>{{ sub.submitter_name or 'Anonymous' }}</small>
+                    {% if sub.submitter_email %}<br><small class="text-muted">{{ sub.submitter_email }}</small>{% endif
+                    %}
+                </td>
+                <td>
+                    <span class="badge {{ 'bg-success' if sub.post_type == 'free' else 'bg-warning text-dark' }}">
+                        {{ sub.post_type }}
+                    </span>
+                </td>
+                <td><span class="badge status-{{ sub.status }}">{{ sub.status }}</span></td>
+                <td>
+                    <span
+                        class="mod-score {{ 'score-good' if (sub.moderation_score or 0) < 0.5 else 'score-warn' if (sub.moderation_score or 0) < 1.5 else 'score-bad' }}">
+                        {{ "%.1f"|format(sub.moderation_score or 0) }}
+                    </span>
+                </td>
+                <td><small>{{ sub.created_at.strftime('%b %d, %H:%M') }}</small></td>
+                <td>
+                    <a href="{{ url_for('admin.submission_detail', sub_id=sub.id) }}"
+                        class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-eye"></i> View
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not submissions.items %}
+            <tr>
+                <td colspan="9" class="text-center text-muted py-4">No submissions found</td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if submissions.pages > 1 %}
+<nav class="pagination-wrapper">
+    <ul class="pagination">
+        {% if submissions.has_prev %}
+        <li class="page-item">
+            <a class="page-link"
+                href="{{ url_for('admin.submissions', page=submissions.prev_num, status=current_status, type=current_type) }}">
+                <i class="bi bi-chevron-left"></i>
+            </a>
+        </li>
+        {% endif %}
+        {% for p in submissions.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+        {% if p %}
+        <li class="page-item {{ 'active' if p == submissions.page }}">
+            <a class="page-link"
+                href="{{ url_for('admin.submissions', page=p, status=current_status, type=current_type) }}">{{ p }}</a>
+        </li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link">…</span></li>
+        {% endif %}
+        {% endfor %}
+        {% if submissions.has_next %}
+        <li class="page-item">
+            <a class="page-link"
+                href="{{ url_for('admin.submissions', page=submissions.next_num, status=current_status, type=current_type) }}">
+                <i class="bi bi-chevron-right"></i>
+            </a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}

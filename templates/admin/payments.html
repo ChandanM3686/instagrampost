@@ -1,0 +1,98 @@
+{% extends "admin/base.html" %}
+{% block title %}SPKR Admin — Payments{% endblock %}
+
+{% block content %}
+<div class="admin-header">
+    <h1><i class="bi bi-credit-card-fill"></i> Payments</h1>
+    <div class="d-flex gap-3 align-items-center">
+        <span class="stat-badge">Total Revenue: <strong>${{ "%.2f"|format(total_revenue) }}</strong></span>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="filter-bar">
+    <div class="filter-group">
+        <label>Status:</label>
+        <div class="filter-pills">
+            <a href="{{ url_for('admin.payments', status='all') }}"
+                class="filter-pill {{ 'active' if current_status == 'all' }}">All</a>
+            <a href="{{ url_for('admin.payments', status='completed') }}"
+                class="filter-pill {{ 'active' if current_status == 'completed' }}">Completed</a>
+            <a href="{{ url_for('admin.payments', status='pending') }}"
+                class="filter-pill {{ 'active' if current_status == 'pending' }}">Pending</a>
+            <a href="{{ url_for('admin.payments', status='failed') }}"
+                class="filter-pill {{ 'active' if current_status == 'failed' }}">Failed</a>
+            <a href="{{ url_for('admin.payments', status='refunded') }}"
+                class="filter-pill {{ 'active' if current_status == 'refunded' }}">Refunded</a>
+        </div>
+    </div>
+</div>
+
+<div class="table-responsive">
+    <table class="table admin-table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Submission</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Payer Email</th>
+                <th>Session ID</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for pay in payments.items %}
+            <tr>
+                <td>{{ pay.id }}</td>
+                <td>
+                    <a href="{{ url_for('admin.submission_detail', sub_id=pay.submission_id) }}" class="text-primary">
+                        #{{ pay.submission_id }}
+                    </a>
+                </td>
+                <td><strong>${{ "%.2f"|format(pay.amount) }}</strong> {{ pay.currency.upper() }}</td>
+                <td>
+                    <span
+                        class="badge {{ 'bg-success' if pay.status == 'completed' else 'bg-warning text-dark' if pay.status == 'pending' else 'bg-danger' if pay.status == 'failed' else 'bg-info' }}">
+                        {{ pay.status }}
+                    </span>
+                </td>
+                <td>{{ pay.payer_email or '—' }}</td>
+                <td><code>{{ pay.stripe_session_id[:20] if pay.stripe_session_id else '—' }}...</code></td>
+                <td><small>{{ pay.created_at.strftime('%b %d, %Y %H:%M') }}</small></td>
+            </tr>
+            {% endfor %}
+            {% if not payments.items %}
+            <tr>
+                <td colspan="7" class="text-center text-muted py-4">No payments found</td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+{% if payments.pages > 1 %}
+<nav class="pagination-wrapper">
+    <ul class="pagination">
+        {% if payments.has_prev %}
+        <li class="page-item"><a class="page-link"
+                href="{{ url_for('admin.payments', page=payments.prev_num, status=current_status) }}"><i
+                    class="bi bi-chevron-left"></i></a></li>
+        {% endif %}
+        {% for p in payments.iter_pages() %}
+        {% if p %}
+        <li class="page-item {{ 'active' if p == payments.page }}"><a class="page-link"
+                href="{{ url_for('admin.payments', page=p, status=current_status) }}">{{ p }}</a></li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link">…</span></li>
+        {% endif %}
+        {% endfor %}
+        {% if payments.has_next %}
+        <li class="page-item"><a class="page-link"
+                href="{{ url_for('admin.payments', page=payments.next_num, status=current_status) }}"><i
+                    class="bi bi-chevron-right"></i></a></li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}

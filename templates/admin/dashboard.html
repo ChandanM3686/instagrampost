@@ -1,0 +1,143 @@
+{% extends "admin/base.html" %}
+{% block title %}SPKR Admin — Dashboard{% endblock %}
+
+{% block content %}
+<div class="admin-header">
+    <h1><i class="bi bi-speedometer2"></i> Dashboard</h1>
+    <p>Overview of your SPKR platform</p>
+</div>
+
+<!-- Stats Cards -->
+<div class="stats-grid">
+    <div class="stat-card stat-total">
+        <div class="stat-icon"><i class="bi bi-inbox-fill"></i></div>
+        <div class="stat-info">
+            <span class="stat-value">{{ total_submissions }}</span>
+            <span class="stat-label">Total Submissions</span>
+        </div>
+    </div>
+    <div class="stat-card stat-pending">
+        <div class="stat-icon"><i class="bi bi-clock-fill"></i></div>
+        <div class="stat-info">
+            <span class="stat-value">{{ pending_count }}</span>
+            <span class="stat-label">Pending Review</span>
+        </div>
+    </div>
+    <div class="stat-card stat-approved">
+        <div class="stat-icon"><i class="bi bi-check-circle-fill"></i></div>
+        <div class="stat-info">
+            <span class="stat-value">{{ approved_count }}</span>
+            <span class="stat-label">Approved</span>
+        </div>
+    </div>
+    <div class="stat-card stat-published">
+        <div class="stat-icon"><i class="bi bi-instagram"></i></div>
+        <div class="stat-info">
+            <span class="stat-value">{{ published_count }}</span>
+            <span class="stat-label">Published</span>
+        </div>
+    </div>
+    <div class="stat-card stat-rejected">
+        <div class="stat-icon"><i class="bi bi-x-circle-fill"></i></div>
+        <div class="stat-info">
+            <span class="stat-value">{{ rejected_count }}</span>
+            <span class="stat-label">Rejected</span>
+        </div>
+    </div>
+    <div class="stat-card stat-flagged">
+        <div class="stat-icon"><i class="bi bi-flag-fill"></i></div>
+        <div class="stat-info">
+            <span class="stat-value">{{ flagged_count }}</span>
+            <span class="stat-label">Flagged</span>
+        </div>
+    </div>
+</div>
+
+<!-- Revenue & Type Stats -->
+<div class="row mt-4">
+    <div class="col-md-4">
+        <div class="stat-card stat-revenue">
+            <div class="stat-icon"><i class="bi bi-currency-dollar"></i></div>
+            <div class="stat-info">
+                <span class="stat-value">${{ "%.2f"|format(total_revenue) }}</span>
+                <span class="stat-label">Total Revenue</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card stat-free">
+            <div class="stat-icon"><i class="bi bi-gift-fill"></i></div>
+            <div class="stat-info">
+                <span class="stat-value">{{ free_count }}</span>
+                <span class="stat-label">Free Posts</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card stat-paid">
+            <div class="stat-icon"><i class="bi bi-rocket-takeoff-fill"></i></div>
+            <div class="stat-info">
+                <span class="stat-value">{{ paid_count }}</span>
+                <span class="stat-label">Promotional Posts</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Submissions -->
+<div class="admin-section mt-4">
+    <div class="section-header">
+        <h2><i class="bi bi-clock-history"></i> Recent Submissions</h2>
+        <a href="{{ url_for('admin.submissions') }}" class="btn btn-sm btn-outline-primary">View All</a>
+    </div>
+    <div class="table-responsive">
+        <table class="table admin-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Caption</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Mod Score</th>
+                    <th>Date</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sub in recent_submissions %}
+                <tr>
+                    <td>{{ sub.id }}</td>
+                    <td class="caption-cell">{{ sub.caption[:80] }}{% if sub.caption|length > 80 %}...{% endif %}</td>
+                    <td>
+                        <span class="badge {{ 'bg-success' if sub.post_type == 'free' else 'bg-warning text-dark' }}">
+                            {{ sub.post_type }}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge status-{{ sub.status }}">{{ sub.status }}</span>
+                    </td>
+                    <td>
+                        <span
+                            class="mod-score {{ 'score-good' if (sub.moderation_score or 0) < 0.5 else 'score-warn' if (sub.moderation_score or 0) < 1.5 else 'score-bad' }}">
+                            {{ "%.1f"|format(sub.moderation_score or 0) }}
+                        </span>
+                    </td>
+                    <td>{{ sub.created_at.strftime('%b %d, %H:%M') }}</td>
+                    <td>
+                        <a href="{{ url_for('admin.submission_detail', sub_id=sub.id) }}"
+                            class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not recent_submissions %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">No submissions yet</td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
