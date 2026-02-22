@@ -86,23 +86,32 @@ def submit():
             flash('Email is required for promotional posts (to confirm your payment).', 'error')
             return redirect(url_for('main.index'))
 
-        # Validate image
+        # Handle image — either uploaded or auto-generated from text
         image_file = request.files.get('image')
-        if not image_file or image_file.filename == '':
-            flash('Image is required.', 'error')
-            return redirect(url_for('main.index'))
-
-        if not allowed_image(image_file.filename):
-            flash('Invalid image format. Allowed: PNG, JPG, JPEG, GIF, WebP', 'error')
-            return redirect(url_for('main.index'))
-
-        # Save image
-        image_ext = image_file.filename.rsplit('.', 1)[-1].lower()
-        image_filename = f'{uuid.uuid4().hex}.{image_ext}'
+        is_text_only = not image_file or image_file.filename == ''
         image_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'images')
         os.makedirs(image_dir, exist_ok=True)
-        image_path = os.path.join(image_dir, image_filename)
-        image_file.save(image_path)
+
+        if is_text_only:
+            # ── Text-only post: auto-generate a styled image ──
+            from app.services.text_to_image import generate_text_image
+            result = generate_text_image(caption, image_dir)
+            if not result['success']:
+                flash(f'Failed to generate text image: {result.get("error", "Unknown error")}', 'error')
+                return redirect(url_for('main.index'))
+            image_filename = result['filename']
+            image_path = result['path']
+            logger.info(f'Auto-generated text image: {image_filename}')
+        else:
+            # ── User uploaded an image ──
+            if not allowed_image(image_file.filename):
+                flash('Invalid image format. Allowed: PNG, JPG, JPEG, GIF, WebP', 'error')
+                return redirect(url_for('main.index'))
+
+            image_ext = image_file.filename.rsplit('.', 1)[-1].lower()
+            image_filename = f'{uuid.uuid4().hex}.{image_ext}'
+            image_path = os.path.join(image_dir, image_filename)
+            image_file.save(image_path)
 
         # Optional video
         video_path_str = None
@@ -121,8 +130,8 @@ def submit():
             video_file.save(video_path)
             video_path_str = f'videos/{video_filename}'
 
-        # Compute image hash for duplicate detection
-        img_hash = compute_image_hash(image_path)
+        # Compute image hash for duplicate detection (only for user-uploaded images)
+        img_hash = compute_image_hash(image_path) if not is_text_only else None
 
         # Determine promo amount
         promo_amount = 0.0

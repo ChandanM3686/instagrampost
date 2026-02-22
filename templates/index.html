@@ -36,7 +36,7 @@
             <div class="step-number">01</div>
             <div class="step-icon"><i class="bi bi-cloud-upload"></i></div>
             <h3>Upload</h3>
-            <p>Upload your image and write a caption for your post.</p>
+            <p>Write your caption and optionally upload an image. Text-only? We'll create one for you!</p>
         </div>
         <div class="step-card">
             <div class="step-number">02</div>
@@ -88,10 +88,10 @@
             <!-- Image Upload -->
             <div class="form-group">
                 <label for="image" class="form-label">
-                    <i class="bi bi-image"></i> Image <span class="required-badge">Required</span>
+                    <i class="bi bi-image"></i> Image <span class="optional-badge">Optional</span>
                 </label>
                 <div class="upload-zone" id="image-upload-zone">
-                    <input type="file" id="image" name="image" accept="image/*" required class="file-input">
+                    <input type="file" id="image" name="image" accept="image/*" class="file-input">
                     <div class="upload-placeholder" id="image-placeholder">
                         <i class="bi bi-cloud-arrow-up"></i>
                         <p>Drag & drop or click to upload</p>
@@ -103,6 +103,9 @@
                                 class="bi bi-x-circle-fill"></i></button>
                     </div>
                 </div>
+                <small style="color: var(--text-muted); font-size: 0.82rem; margin-top: 6px; display: block;">
+                    💡 No image? No problem! We'll auto-generate a stylish text post image for you.
+                </small>
             </div>
 
             <!-- Video Upload -->

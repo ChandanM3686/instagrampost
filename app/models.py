@@ -33,7 +33,7 @@ class Submission(db.Model):
     # Content
     caption = db.Column(db.Text, nullable=False)
     original_caption = db.Column(db.Text, nullable=True)
-    image_path = db.Column(db.String(500), nullable=False)
+    image_path = db.Column(db.String(500), nullable=True)
     video_path = db.Column(db.String(500), nullable=True)
     image_hash = db.Column(db.String(64), nullable=True)
 
