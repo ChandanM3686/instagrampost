@@ -254,7 +254,7 @@ def enhance_caption(sub_id):
 @admin_bp.route('/submissions/<int:sub_id>/publish', methods=['POST'])
 @admin_required
 def publish_submission(sub_id):
-    """Publish a submission to Instagram with auto-generated AI caption."""
+    """Publish a submission to Instagram with auto-generated AI caption and optional collaborators."""
     submission = Submission.query.get_or_404(sub_id)
 
     if submission.status not in ('approved', 'pending', 'flagged'):
@@ -278,6 +278,14 @@ def publish_submission(sub_id):
         if not os.path.exists(local_image_path):
             flash('Image file not found on server.', 'error')
             return redirect(url_for('admin.submission_detail', sub_id=sub_id))
+
+        # ── Parse collaborators ──
+        collab_input = request.form.get('collaborators', '').strip()
+        collaborators = None
+        if collab_input:
+            collaborators = [u.strip().lstrip('@') for u in collab_input.split(',') if u.strip()]
+            collaborators = collaborators[:3]  # Instagram API limit
+            logger.info(f'Collaborators for #{sub_id}: {collaborators}')
 
         # ── Auto-generate caption using Gemini AI ──
         use_auto_caption = 'auto_caption' in request.form
@@ -318,7 +326,7 @@ def publish_submission(sub_id):
                 video_url = request.form.get('video_url', '')
                 result = ig.publish_video(video_url, final_caption)
             else:
-                result = ig.publish_image(manual_image_url, final_caption)
+                result = ig.publish_image(manual_image_url, final_caption, collaborators=collaborators)
         else:
             # Auto-publish from local file
             video_path = None
@@ -328,7 +336,7 @@ def publish_submission(sub_id):
                     submission.video_path
                 )
 
-            result = ig.publish_from_local(local_image_path, final_caption, video_path)
+            result = ig.publish_from_local(local_image_path, final_caption, video_path, collaborators=collaborators)
 
         if result['success']:
             submission.status = 'published'
@@ -336,8 +344,9 @@ def publish_submission(sub_id):
             submission.published_at = datetime.datetime.utcnow()
             db.session.commit()
 
-            flash(f'✅ Published to Instagram! Post ID: {submission.instagram_post_id}', 'success')
-            logger.info(f'Submission #{sub_id} published to Instagram')
+            collab_msg = f' with collaboration invite to {", ".join(collaborators)}' if collaborators else ''
+            flash(f'✅ Published to Instagram{collab_msg}! Post ID: {submission.instagram_post_id}', 'success')
+            logger.info(f'Submission #{sub_id} published to Instagram{collab_msg}')
         else:
             flash(f'Instagram publishing failed: {result.get("error", "Unknown error")}', 'error')
             logger.error(f'Instagram publish failed for #{sub_id}: {result}')

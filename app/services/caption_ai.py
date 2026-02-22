@@ -17,7 +17,10 @@ class CaptionGenerator:
     """Generate Instagram captions using Gemini AI with image analysis."""
 
     def __init__(self, api_key=None):
-        self.api_key = api_key or os.environ.get('GEMINI_API_KEY', 'AIzaSyCcjd8Wj3xnuU3WCe5UZed_eNsEnX5SQ-U')
+        self.api_key = api_key or os.environ.get('GEMINI_API_KEY', '')
+        if not self.api_key:
+            logger.warning('GEMINI_API_KEY not set in environment variables')
+            raise ValueError('GEMINI_API_KEY is required. Set it in your .env file.')
         self.client = genai.Client(api_key=self.api_key)
 
     def generate_caption(self, image_path, user_caption="", style="engaging"):

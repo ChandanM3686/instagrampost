@@ -150,10 +150,11 @@ class InstagramService:
             logger.error(f'imgbb upload error: {e}')
             return {'success': False, 'error': str(e)}
 
-    def create_image_container(self, image_url, caption):
+    def create_image_container(self, image_url, caption, collaborators=None):
         """
         Create a media container for an image post.
         image_url must be a publicly accessible URL.
+        collaborators: optional list of Instagram usernames (max 3) to invite.
         """
         url = self._api_url(f'{self.account_id}/media')
         payload = {
@@ -161,6 +162,13 @@ class InstagramService:
             'caption': caption,
             'access_token': self.access_token
         }
+
+        # Add collaborators if provided (up to 3 usernames)
+        if collaborators:
+            clean_collabs = [u.strip().lstrip('@') for u in collaborators if u.strip()][:3]
+            if clean_collabs:
+                payload['collaborators'] = clean_collabs
+                logger.info(f'Adding collaborators: {clean_collabs}')
 
         try:
             logger.info(f'Creating image container: account={self.account_id}, url={image_url[:50]}...')
@@ -260,10 +268,10 @@ class InstagramService:
             logger.error(f'Instagram publish error: {e}')
             return {'success': False, 'error': str(e)}
 
-    def publish_image(self, image_url, caption):
+    def publish_image(self, image_url, caption, collaborators=None):
         """Full flow: create container → wait → publish for an image."""
         # Step 1: Create container
-        container_result = self.create_image_container(image_url, caption)
+        container_result = self.create_image_container(image_url, caption, collaborators=collaborators)
         if not container_result['success']:
             return container_result
 
@@ -290,10 +298,11 @@ class InstagramService:
 
         return self.publish_container(container_id)
 
-    def publish_from_local(self, local_image_path, caption, video_path=None):
+    def publish_from_local(self, local_image_path, caption, video_path=None, collaborators=None):
         """
         Full flow: upload local image to imgbb → create container → wait → publish.
         This handles everything automatically — one-click publish.
+        collaborators: optional list of Instagram usernames to invite as collaborators.
         """
         if not self.is_configured():
             return {'success': False, 'error': 'Instagram API not configured. Set INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_ACCOUNT_ID in .env'}
@@ -311,7 +320,7 @@ class InstagramService:
         public_url = upload_result['url']
         logger.info(f'Image uploaded: {public_url}')
 
-        # Step 2: Publish via Instagram API
+        # Step 3: Publish via Instagram API
         if video_path:
             # Upload video to imgbb too
             video_upload = self.upload_image_to_imgbb(video_path)
@@ -320,7 +329,7 @@ class InstagramService:
             else:
                 return video_upload
 
-        return self.publish_image(public_url, caption)
+        return self.publish_image(public_url, caption, collaborators=collaborators)
 
     def get_media_info(self, media_id):
         """Get info about a published post."""
