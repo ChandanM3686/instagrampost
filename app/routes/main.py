@@ -86,9 +86,11 @@ def submit():
             flash('Email is required for promotional posts (to confirm your payment).', 'error')
             return redirect(url_for('main.index'))
 
-        # Handle image — either uploaded or auto-generated from text
-        image_file = request.files.get('image')
-        is_text_only = not image_file or image_file.filename == ''
+        # Handle images — single, multiple (carousel), or auto-generated from text
+        image_files = request.files.getlist('images')
+        # Filter out empty file inputs
+        image_files = [f for f in image_files if f and f.filename != '']
+        is_text_only = len(image_files) == 0
         image_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'images')
         os.makedirs(image_dir, exist_ok=True)
 
@@ -101,17 +103,32 @@ def submit():
                 return redirect(url_for('main.index'))
             image_filename = result['filename']
             image_path = result['path']
+            extra_image_paths = []
             logger.info(f'Auto-generated text image: {image_filename}')
         else:
-            # ── User uploaded an image ──
-            if not allowed_image(image_file.filename):
-                flash('Invalid image format. Allowed: PNG, JPG, JPEG, GIF, WebP', 'error')
-                return redirect(url_for('main.index'))
+            # ── User uploaded image(s) ──
+            saved_images = []
+            for img_file in image_files[:10]:  # Max 10 images
+                if not allowed_image(img_file.filename):
+                    flash(f'Invalid image format for {img_file.filename}. Allowed: PNG, JPG, JPEG, GIF, WebP', 'error')
+                    # Clean up already saved images
+                    for p in saved_images:
+                        if os.path.exists(p['path']):
+                            os.remove(p['path'])
+                    return redirect(url_for('main.index'))
 
-            image_ext = image_file.filename.rsplit('.', 1)[-1].lower()
-            image_filename = f'{uuid.uuid4().hex}.{image_ext}'
-            image_path = os.path.join(image_dir, image_filename)
-            image_file.save(image_path)
+                image_ext = img_file.filename.rsplit('.', 1)[-1].lower()
+                img_filename = f'{uuid.uuid4().hex}.{image_ext}'
+                img_path = os.path.join(image_dir, img_filename)
+                img_file.save(img_path)
+                saved_images.append({'filename': img_filename, 'path': img_path})
+
+            # First image is the main/cover image
+            image_filename = saved_images[0]['filename']
+            image_path = saved_images[0]['path']
+            # Extra images for carousel
+            extra_image_paths = [f'images/{img["filename"]}' for img in saved_images[1:]]
+            logger.info(f'Saved {len(saved_images)} image(s): cover={image_filename}, extras={len(extra_image_paths)}')
 
         # Optional video
         video_path_str = None
@@ -143,6 +160,7 @@ def submit():
                 promo_amount = 1.0
 
         # Create submission
+        import json as json_lib
         submission = Submission(
             submitter_name=submitter_name,
             submitter_email=submitter_email,
@@ -151,6 +169,7 @@ def submit():
             caption=caption,
             original_caption=caption,
             image_path=f'images/{image_filename}',
+            extra_images=json_lib.dumps(extra_image_paths) if extra_image_paths else None,
             video_path=video_path_str,
             image_hash=img_hash,
             post_type=post_type,

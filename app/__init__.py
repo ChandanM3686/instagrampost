@@ -87,6 +87,10 @@ def create_app(config_name=None):
         _seed_admin(app)
         _seed_settings()
 
+    # Custom Jinja filters
+    import json
+    app.jinja_env.filters['from_json'] = lambda s: json.loads(s) if s else []
+
     return app
 
 

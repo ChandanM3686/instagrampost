@@ -331,6 +331,106 @@ class InstagramService:
 
         return self.publish_image(public_url, caption, collaborators=collaborators)
 
+    def publish_carousel_from_local(self, image_paths, caption, collaborators=None):
+        """
+        Publish a carousel (multi-image) post from local files.
+        image_paths: list of local image file paths (2-10 images).
+        """
+        if not self.is_configured():
+            return {'success': False, 'error': 'Instagram API not configured'}
+
+        if len(image_paths) < 2:
+            return {'success': False, 'error': 'Carousel requires at least 2 images'}
+
+        if len(image_paths) > 10:
+            image_paths = image_paths[:10]
+
+        # Step 1: Upload all images to imgbb and create child containers
+        child_container_ids = []
+        for i, img_path in enumerate(image_paths):
+            # Fix aspect ratio
+            fixed_path = self.fix_aspect_ratio(img_path)
+
+            # Upload to imgbb
+            upload_result = self.upload_image_to_imgbb(fixed_path)
+            if not upload_result['success']:
+                logger.error(f'Failed to upload carousel image {i+1}: {upload_result.get("error")}')
+                return upload_result
+
+            # Create child container (no caption on individual items)
+            child_result = self.create_carousel_item_container(upload_result['url'])
+            if not child_result['success']:
+                logger.error(f'Failed to create carousel child container {i+1}: {child_result.get("error")}')
+                return child_result
+
+            child_container_ids.append(child_result['container_id'])
+            logger.info(f'Carousel item {i+1}/{len(image_paths)} created: {child_result["container_id"]}')
+
+        # Step 2: Create carousel container with all children
+        carousel_result = self.create_carousel_container(child_container_ids, caption, collaborators)
+        if not carousel_result['success']:
+            return carousel_result
+
+        carousel_id = carousel_result['container_id']
+
+        # Step 3: Wait for carousel to be ready
+        if not self.wait_for_container(carousel_id, max_attempts=30, delay=5):
+            return {'success': False, 'error': 'Carousel processing timed out'}
+
+        # Step 4: Publish
+        return self.publish_container(carousel_id)
+
+    def create_carousel_item_container(self, image_url):
+        """Create a child container for a carousel item (no caption)."""
+        url = self._api_url(f'{self.account_id}/media')
+        payload = {
+            'image_url': image_url,
+            'is_carousel_item': 'true',
+            'access_token': self.access_token
+        }
+
+        try:
+            response = requests.post(url, data=payload, timeout=60)
+            data = response.json()
+
+            if 'id' in data:
+                return {'success': True, 'container_id': data['id']}
+            else:
+                error = data.get('error', {}).get('message', str(data))
+                return {'success': False, 'error': error}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def create_carousel_container(self, children_ids, caption, collaborators=None):
+        """Create the parent carousel container with all child container IDs."""
+        url = self._api_url(f'{self.account_id}/media')
+        payload = {
+            'media_type': 'CAROUSEL',
+            'caption': caption,
+            'children': ','.join(children_ids),
+            'access_token': self.access_token
+        }
+
+        if collaborators:
+            clean_collabs = [u.strip().lstrip('@') for u in collaborators if u.strip()][:3]
+            if clean_collabs:
+                payload['collaborators'] = clean_collabs
+
+        try:
+            logger.info(f'Creating carousel container with {len(children_ids)} items')
+            response = requests.post(url, data=payload, timeout=60)
+            data = response.json()
+
+            if 'id' in data:
+                logger.info(f'Carousel container created: {data["id"]}')
+                return {'success': True, 'container_id': data['id']}
+            else:
+                error = data.get('error', {}).get('message', str(data))
+                logger.error(f'Failed to create carousel container: {error}')
+                return {'success': False, 'error': error}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
     def get_media_info(self, media_id):
         """Get info about a published post."""
         url = self._api_url(media_id)

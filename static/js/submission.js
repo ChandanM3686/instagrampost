@@ -1,45 +1,76 @@
 /**
  * SPKR — Submission Form JavaScript
- * Handles: file upload preview, post type switching, character count, form validation
+ * Handles: multi-image upload preview, post type switching, character count, form validation
  */
 
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('submission-form');
-    const imageInput = document.getElementById('image');
+    const imagesInput = document.getElementById('images');
     const videoInput = document.getElementById('video');
     const captionInput = document.getElementById('caption');
     const charCount = document.getElementById('char-count');
     const submitBtn = document.getElementById('submit-btn');
     const promoOptions = document.getElementById('promo-options');
 
-    // ───── Image Upload Preview ─────
-    if (imageInput) {
-        imageInput.addEventListener('change', function () {
-            const file = this.files[0];
-            if (file) {
-                // Validate size
+    // ───── Multi-Image Upload Preview ─────
+    if (imagesInput) {
+        imagesInput.addEventListener('change', function () {
+            const files = Array.from(this.files);
+            if (files.length === 0) return;
+
+            // Validate total count
+            if (files.length > 10) {
+                alert('Maximum 10 images allowed. Please select fewer images.');
+                this.value = '';
+                return;
+            }
+
+            // Validate each file
+            const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'];
+            for (const file of files) {
                 if (file.size > 16 * 1024 * 1024) {
-                    alert('Image too large. Maximum size is 16MB.');
+                    alert(`Image "${file.name}" is too large. Maximum size is 16MB.`);
                     this.value = '';
                     return;
                 }
-
-                // Validate type
-                const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'];
                 if (!validTypes.includes(file.type)) {
-                    alert('Invalid image format. Allowed: PNG, JPG, GIF, WebP');
+                    alert(`Invalid format for "${file.name}". Allowed: PNG, JPG, GIF, WebP`);
                     this.value = '';
                     return;
                 }
+            }
 
+            // Show preview grid
+            const placeholder = document.getElementById('image-placeholder');
+            const grid = document.getElementById('image-preview-grid');
+            const clearBtn = document.getElementById('clear-images-btn');
+
+            placeholder.style.display = 'none';
+            grid.style.display = 'grid';
+            grid.innerHTML = '';
+            if (clearBtn) clearBtn.style.display = 'inline-flex';
+
+            files.forEach((file, index) => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                    document.getElementById('image-placeholder').style.display = 'none';
-                    const preview = document.getElementById('image-preview');
-                    preview.style.display = 'block';
-                    document.getElementById('image-preview-img').src = e.target.result;
+                    const item = document.createElement('div');
+                    item.className = 'preview-grid-item';
+                    item.innerHTML = `
+                        <img src="${e.target.result}" alt="Preview ${index + 1}">
+                        ${index === 0 ? '<span class="cover-badge">Cover</span>' : ''}
+                        <span class="image-count-badge">${index + 1}</span>
+                    `;
+                    grid.appendChild(item);
                 };
                 reader.readAsDataURL(file);
+            });
+
+            // Show count indicator
+            if (files.length > 1) {
+                const countInfo = document.createElement('div');
+                countInfo.className = 'upload-count-info';
+                countInfo.innerHTML = `<i class="bi bi-images"></i> ${files.length} images selected — will be posted as a carousel`;
+                grid.appendChild(countInfo);
             }
         });
 
@@ -63,8 +94,8 @@ document.addEventListener('DOMContentLoaded', () => {
             imageZone.addEventListener('drop', (e) => {
                 const files = e.dataTransfer.files;
                 if (files.length > 0) {
-                    imageInput.files = files;
-                    imageInput.dispatchEvent(new Event('change'));
+                    imagesInput.files = files;
+                    imagesInput.dispatchEvent(new Event('change'));
                 }
             });
         }
@@ -155,11 +186,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ───── Global Functions ─────
 
-function removeImage() {
-    const input = document.getElementById('image');
-    input.value = '';
+function clearAllImages() {
+    const input = document.getElementById('images');
+    if (input) input.value = '';
     document.getElementById('image-placeholder').style.display = 'flex';
-    document.getElementById('image-preview').style.display = 'none';
+    const grid = document.getElementById('image-preview-grid');
+    if (grid) {
+        grid.style.display = 'none';
+        grid.innerHTML = '';
+    }
+    const clearBtn = document.getElementById('clear-images-btn');
+    if (clearBtn) clearBtn.style.display = 'none';
 }
 
 function removeVideo() {

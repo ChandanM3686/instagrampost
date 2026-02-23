@@ -301,7 +301,8 @@ def publish_submission(sub_id):
                 result = generator.generate_caption(
                     image_path=local_image_path,
                     user_caption=submission.caption or '',
-                    style=caption_style
+                    style=caption_style,
+                    submission_id=sub_id
                 )
 
                 if result['success']:
@@ -328,15 +329,38 @@ def publish_submission(sub_id):
             else:
                 result = ig.publish_image(manual_image_url, final_caption, collaborators=collaborators)
         else:
-            # Auto-publish from local file
-            video_path = None
-            if submission.video_path:
-                video_path = os.path.join(
-                    current_app.config['UPLOAD_FOLDER'],
-                    submission.video_path
-                )
+            # Check if this is a carousel (multi-image) post
+            import json as json_lib
+            extra_images = []
+            if submission.extra_images:
+                try:
+                    extra_images = json_lib.loads(submission.extra_images)
+                except (json_lib.JSONDecodeError, TypeError):
+                    extra_images = []
 
-            result = ig.publish_from_local(local_image_path, final_caption, video_path, collaborators=collaborators)
+            if extra_images and len(extra_images) > 0:
+                # ── Carousel post ──
+                all_image_paths = [local_image_path]
+                for extra_img in extra_images:
+                    extra_path = os.path.join(current_app.config['UPLOAD_FOLDER'], extra_img)
+                    if os.path.exists(extra_path):
+                        all_image_paths.append(extra_path)
+
+                if len(all_image_paths) >= 2:
+                    logger.info(f'Publishing carousel with {len(all_image_paths)} images for #{sub_id}')
+                    result = ig.publish_carousel_from_local(all_image_paths, final_caption, collaborators=collaborators)
+                else:
+                    result = ig.publish_from_local(local_image_path, final_caption, collaborators=collaborators)
+            else:
+                # ── Single image or video post ──
+                video_path = None
+                if submission.video_path:
+                    video_path = os.path.join(
+                        current_app.config['UPLOAD_FOLDER'],
+                        submission.video_path
+                    )
+
+                result = ig.publish_from_local(local_image_path, final_caption, video_path, collaborators=collaborators)
 
         if result['success']:
             submission.status = 'published'

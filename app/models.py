@@ -34,6 +34,7 @@ class Submission(db.Model):
     caption = db.Column(db.Text, nullable=False)
     original_caption = db.Column(db.Text, nullable=True)
     image_path = db.Column(db.String(500), nullable=True)
+    extra_images = db.Column(db.Text, nullable=True)  # JSON list of extra image paths for carousel
     video_path = db.Column(db.String(500), nullable=True)
     image_hash = db.Column(db.String(64), nullable=True)
 

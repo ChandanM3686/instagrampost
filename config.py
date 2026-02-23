@@ -41,6 +41,9 @@ class Config:
     # Redis
     REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
 
+    # Gemini AI
+    GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+
 
 class DevelopmentConfig(Config):
     DEBUG = True
