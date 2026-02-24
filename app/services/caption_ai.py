@@ -54,7 +54,7 @@ class CaptionGenerator:
 
             style_prompt = style_instructions.get(style, style_instructions['engaging'])
 
-            # Winnipeg SPKR-style caption format
+            # SasksVoice-style caption format
             prompt = f"""You are an expert Instagram content creator for a community page called "Sask Voice" (@sasksvoice).
 
 Analyze this image carefully and generate a perfect Instagram caption.
@@ -166,7 +166,7 @@ Generate ONLY the caption text. No explanations."""
             return {'success': False, 'error': str(e)}
 
     def _get_timestamp(self):
-        """Get current timestamp in Winnipeg SPKR format using Regina, SK timezone."""
+        """Get current timestamp in SasksVoice format using Regina, SK timezone."""
         import datetime
         from zoneinfo import ZoneInfo
         regina_tz = ZoneInfo('America/Regina')

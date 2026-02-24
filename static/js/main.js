@@ -1,5 +1,5 @@
 /**
- * SPKR — Main site JavaScript
+ * SasksVoice — Main site JavaScript
  * Handles: navigation toggle, flash auto-dismiss, smooth scroll
  */
 

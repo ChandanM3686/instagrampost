@@ -32,7 +32,7 @@ class PaymentService:
                         'currency': 'usd',
                         'unit_amount': amount_cents,
                         'product_data': {
-                            'name': 'SPKR Promotional Post',
+                            'name': 'SasksVoice Promotional Post',
                             'description': f'Promotional post #{submission_id}',
                         },
                     },

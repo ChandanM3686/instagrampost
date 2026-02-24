@@ -57,7 +57,7 @@ def create_app(config_name=None):
         file_handler.setLevel(logging.INFO)
         app.logger.addHandler(file_handler)
         app.logger.setLevel(logging.INFO)
-        app.logger.info('SPKR Platform startup')
+        app.logger.info('SasksVoice Platform startup')
 
     # Register blueprints
     from app.routes.main import main_bp

@@ -1,5 +1,5 @@
 /**
- * SPKR — Submission Form JavaScript
+ * SasksVoice — Submission Form JavaScript
  * Handles: multi-image upload preview, post type switching, character count, form validation
  */
 

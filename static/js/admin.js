@@ -1,5 +1,5 @@
 /**
- * SPKR Admin — Dashboard JavaScript
+ * SasksVoice Admin — Dashboard JavaScript
  * Handles: sidebar toggle, active states
  */
 

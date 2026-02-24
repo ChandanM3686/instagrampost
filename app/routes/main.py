@@ -205,7 +205,7 @@ def submit():
                             'currency': 'usd',
                             'unit_amount': int(promo_amount * 100),
                             'product_data': {
-                                'name': 'SPKR Promotional Post',
+                                'name': 'SasksVoice Promotional Post',
                                 'description': f'Promotional post #{submission.id}',
                             },
                         },
