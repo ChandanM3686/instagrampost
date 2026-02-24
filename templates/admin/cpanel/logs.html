@@ -1,0 +1,197 @@
+{% extends "admin/base.html" %}
+{% block title %}Server Panel — Logs{% endblock %}
+
+{% block extra_css %}
+<style>
+    .cpanel-nav {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+    }
+
+    .cpanel-nav a {
+        padding: 10px 18px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.06);
+        color: #c8c4d8;
+        text-decoration: none;
+        font-size: 0.9rem;
+        font-weight: 500;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .cpanel-nav a:hover,
+    .cpanel-nav a.active {
+        background: linear-gradient(135deg, #6c5ce7, #a855f7);
+        color: #fff;
+    }
+
+    .log-layout {
+        display: grid;
+        grid-template-columns: 200px 1fr;
+        gap: 20px;
+    }
+
+    .log-sidebar {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 14px;
+    }
+
+    .log-sidebar h4 {
+        font-size: 0.8rem;
+        color: #7a7590;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 10px;
+    }
+
+    .log-link {
+        display: block;
+        padding: 8px 12px;
+        border-radius: 8px;
+        color: #c8c4d8;
+        text-decoration: none;
+        font-size: 0.85rem;
+        margin-bottom: 2px;
+        transition: background 0.2s;
+    }
+
+    .log-link:hover {
+        background: rgba(255, 255, 255, 0.06);
+        color: #fff;
+    }
+
+    .log-link.active {
+        background: linear-gradient(135deg, #6c5ce7, #a855f7);
+        color: #fff;
+    }
+
+    .log-content {
+        background: rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 18px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.78rem;
+        line-height: 1.7;
+        color: #c8c4d8;
+        overflow-x: auto;
+        max-height: 650px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+
+    .log-controls {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 14px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .log-controls select,
+    .log-controls input {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: #e0dce8;
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-size: 0.85rem;
+    }
+
+    .log-line-error {
+        color: #ff5252;
+    }
+
+    .log-line-warn {
+        color: #ffb300;
+    }
+
+    .log-line-info {
+        color: #00d4aa;
+    }
+
+    @media (max-width:768px) {
+        .log-layout {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-header">
+    <h1><i class="bi bi-journal-text"></i> Log Viewer</h1>
+    <p>Monitor application logs in real-time</p>
+</div>
+
+<div class="cpanel-nav">
+    <a href="{{ url_for('cpanel.dashboard') }}"><i class="bi bi-speedometer2"></i> Monitor</a>
+    <a href="{{ url_for('cpanel.file_manager') }}"><i class="bi bi-folder2-open"></i> Files</a>
+    <a href="{{ url_for('cpanel.database_browser') }}"><i class="bi bi-database"></i> Database</a>
+    <a href="{{ url_for('cpanel.log_viewer') }}" class="active"><i class="bi bi-journal-text"></i> Logs</a>
+    <a href="{{ url_for('cpanel.services') }}"><i class="bi bi-gear-wide-connected"></i> Services</a>
+    <a href="{{ url_for('cpanel.terminal') }}"><i class="bi bi-terminal"></i> Terminal</a>
+</div>
+
+<div class="log-layout">
+    <div class="log-sidebar">
+        <h4><i class="bi bi-file-text"></i> Log Files</h4>
+        {% for lf in log_files %}
+        <a href="{{ url_for('cpanel.log_viewer', file=lf.name) }}"
+            class="log-link {{ 'active' if lf.name == selected_log else '' }}">
+            <i class="bi bi-file-text"></i> {{ lf.name }}
+            <div style="font-size:0.72rem; color:#7a7590;">
+                {% if lf.size > 1048576 %}{{ "%.1f"|format(lf.size / 1048576) }} MB
+                {% elif lf.size > 1024 %}{{ "%.1f"|format(lf.size / 1024) }} KB
+                {% else %}{{ lf.size }} B{% endif %}
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+
+    <div>
+        <div class="log-controls">
+            <label style="color:#7a7590; font-size:0.85rem;">Show last</label>
+            <form method="GET" style="display:flex; gap:8px; align-items:center;">
+                <input type="hidden" name="file" value="{{ selected_log }}">
+                <select name="lines" onchange="this.form.submit()">
+                    <option value="50" {{ 'selected' if lines_count==50 }}>50 lines</option>
+                    <option value="100" {{ 'selected' if lines_count==100 }}>100 lines</option>
+                    <option value="200" {{ 'selected' if lines_count==200 }}>200 lines</option>
+                    <option value="500" {{ 'selected' if lines_count==500 }}>500 lines</option>
+                </select>
+            </form>
+            <button onclick="location.reload()" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+
+        <div class="log-content" id="logContent">{{ log_content if log_content else 'No log content available.' }}</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Auto-scroll to bottom of log
+    const logEl = document.getElementById('logContent');
+    if (logEl) logEl.scrollTop = logEl.scrollHeight;
+
+    // Color-code log lines
+    if (logEl) {
+        let html = logEl.innerHTML;
+        html = html.replace(/(ERROR.*)/g, '<span class="log-line-error">$1</span>');
+        html = html.replace(/(WARNING.*)/g, '<span class="log-line-warn">$1</span>');
+        html = html.replace(/(INFO.*)/g, '<span class="log-line-info">$1</span>');
+        logEl.innerHTML = html;
+    }
+</script>
+{% endblock %}

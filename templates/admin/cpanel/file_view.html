@@ -1,0 +1,144 @@
+{% extends "admin/base.html" %}
+{% block title %}Server Panel — {{ file_path }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .cpanel-nav {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+    }
+
+    .cpanel-nav a {
+        padding: 10px 18px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.06);
+        color: #c8c4d8;
+        text-decoration: none;
+        font-size: 0.9rem;
+        font-weight: 500;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .cpanel-nav a:hover,
+    .cpanel-nav a.active {
+        background: linear-gradient(135deg, #6c5ce7, #a855f7);
+        color: #fff;
+    }
+
+    .file-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .file-meta {
+        font-size: 0.85rem;
+        color: #7a7590;
+    }
+
+    .code-editor {
+        width: 100%;
+        min-height: 500px;
+        background: rgba(0, 0, 0, 0.3);
+        color: #e0dce8;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        padding: 16px;
+        font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        font-size: 0.85rem;
+        line-height: 1.6;
+        resize: vertical;
+        tab-size: 4;
+    }
+
+    .code-editor:focus {
+        outline: none;
+        border-color: #6c5ce7;
+    }
+
+    .code-view {
+        background: rgba(0, 0, 0, 0.3);
+        color: #e0dce8;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        padding: 20px;
+        font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        font-size: 0.85rem;
+        line-height: 1.6;
+        overflow-x: auto;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        max-height: 600px;
+        overflow-y: auto;
+    }
+
+    .save-bar {
+        display: flex;
+        gap: 10px;
+        margin-top: 12px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-header">
+    <h1><i class="bi bi-file-earmark-code"></i> File Viewer</h1>
+</div>
+
+<div class="cpanel-nav">
+    <a href="{{ url_for('cpanel.dashboard') }}"><i class="bi bi-speedometer2"></i> Monitor</a>
+    <a href="{{ url_for('cpanel.file_manager') }}" class="active"><i class="bi bi-folder2-open"></i> Files</a>
+    <a href="{{ url_for('cpanel.database_browser') }}"><i class="bi bi-database"></i> Database</a>
+    <a href="{{ url_for('cpanel.log_viewer') }}"><i class="bi bi-journal-text"></i> Logs</a>
+    <a href="{{ url_for('cpanel.services') }}"><i class="bi bi-gear-wide-connected"></i> Services</a>
+    <a href="{{ url_for('cpanel.terminal') }}"><i class="bi bi-terminal"></i> Terminal</a>
+</div>
+
+<div class="file-header">
+    <div>
+        <h3 style="color:#e0dce8; margin:0;">{{ file_path.split('/')[-1] }}</h3>
+        <div class="file-meta">
+            {{ file_path }} ·
+            {% if file_size > 1048576 %}{{ "%.1f"|format(file_size / 1048576) }} MB
+            {% elif file_size > 1024 %}{{ "%.1f"|format(file_size / 1024) }} KB
+            {% else %}{{ file_size }} B{% endif %}
+        </div>
+    </div>
+    <div style="display:flex; gap:8px;">
+        <a href="{{ url_for('cpanel.download_file', subpath=file_path) }}" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-download"></i> Download
+        </a>
+        <a href="{{ url_for('cpanel.file_manager', subpath='/'.join(file_path.split('/')[:-1])) }}"
+            class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
+    </div>
+</div>
+
+{% if is_text %}
+<form method="POST" action="{{ url_for('cpanel.edit_file', subpath=file_path) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <textarea class="code-editor" name="content" spellcheck="false">{{ file_content }}</textarea>
+    <div class="save-bar">
+        <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Save Changes</button>
+        <button type="reset" class="btn btn-outline-secondary">Reset</button>
+    </div>
+</form>
+{% else %}
+<div class="code-view">
+    <p style="color:#7a7590; text-align:center; margin:40px 0;">
+        <i class="bi bi-file-earmark-binary" style="font-size:2rem; display:block; margin-bottom:10px;"></i>
+        Binary file ({{ ext }}) — cannot be previewed.<br>
+        <a href="{{ url_for('cpanel.download_file', subpath=file_path) }}" style="color:#a855f7;">Download file</a>
+    </p>
+</div>
+{% endif %}
+{% endblock %}

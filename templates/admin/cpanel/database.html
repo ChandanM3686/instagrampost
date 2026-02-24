@@ -1,0 +1,353 @@
+{% extends "admin/base.html" %}
+{% block title %}Server Panel — Database{% endblock %}
+
+{% block extra_css %}
+<style>
+    .cpanel-nav {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+    }
+
+    .cpanel-nav a {
+        padding: 10px 18px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.06);
+        color: #c8c4d8;
+        text-decoration: none;
+        font-size: 0.9rem;
+        font-weight: 500;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .cpanel-nav a:hover,
+    .cpanel-nav a.active {
+        background: linear-gradient(135deg, #6c5ce7, #a855f7);
+        color: #fff;
+    }
+
+    .db-layout {
+        display: grid;
+        grid-template-columns: 220px 1fr;
+        gap: 20px;
+    }
+
+    .table-sidebar {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 14px;
+        max-height: 700px;
+        overflow-y: auto;
+    }
+
+    .table-sidebar h4 {
+        font-size: 0.8rem;
+        color: #7a7590;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 10px;
+    }
+
+    .table-link {
+        display: block;
+        padding: 8px 12px;
+        border-radius: 8px;
+        color: #c8c4d8;
+        text-decoration: none;
+        font-size: 0.85rem;
+        margin-bottom: 2px;
+        transition: background 0.2s;
+    }
+
+    .table-link:hover {
+        background: rgba(255, 255, 255, 0.06);
+        color: #fff;
+    }
+
+    .table-link.active {
+        background: linear-gradient(135deg, #6c5ce7, #a855f7);
+        color: #fff;
+    }
+
+    .table-link i {
+        margin-right: 6px;
+    }
+
+    .db-content {
+        min-width: 0;
+    }
+
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+    }
+
+    .data-table th {
+        color: #7a7590;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.72rem;
+        letter-spacing: 0.5px;
+        padding: 10px 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        white-space: nowrap;
+        position: sticky;
+        top: 0;
+        background: #1a1a2e;
+    }
+
+    .data-table td {
+        padding: 8px 12px;
+        color: #c8c4d8;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .data-table tr:hover td {
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .table-wrapper {
+        overflow-x: auto;
+        max-height: 500px;
+        overflow-y: auto;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+    }
+
+    .pagination-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 0;
+        color: #7a7590;
+        font-size: 0.85rem;
+    }
+
+    .pagination-bar a {
+        color: #a855f7;
+        text-decoration: none;
+        padding: 6px 14px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.06);
+    }
+
+    .pagination-bar a:hover {
+        background: rgba(168, 85, 247, 0.2);
+    }
+
+    .sql-section {
+        margin-top: 24px;
+    }
+
+    .sql-input {
+        width: 100%;
+        background: rgba(0, 0, 0, 0.3);
+        color: #e0dce8;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        padding: 14px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.85rem;
+        min-height: 80px;
+        resize: vertical;
+    }
+
+    .sql-input:focus {
+        outline: none;
+        border-color: #6c5ce7;
+    }
+
+    .query-result {
+        margin-top: 14px;
+        background: rgba(0, 0, 0, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        padding: 14px;
+        max-height: 300px;
+        overflow: auto;
+        font-size: 0.82rem;
+        color: #c8c4d8;
+    }
+
+    @media (max-width:768px) {
+        .db-layout {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-header">
+    <h1><i class="bi bi-database"></i> Database Browser</h1>
+    <p>View and query your database tables</p>
+</div>
+
+<div class="cpanel-nav">
+    <a href="{{ url_for('cpanel.dashboard') }}"><i class="bi bi-speedometer2"></i> Monitor</a>
+    <a href="{{ url_for('cpanel.file_manager') }}"><i class="bi bi-folder2-open"></i> Files</a>
+    <a href="{{ url_for('cpanel.database_browser') }}" class="active"><i class="bi bi-database"></i> Database</a>
+    <a href="{{ url_for('cpanel.log_viewer') }}"><i class="bi bi-journal-text"></i> Logs</a>
+    <a href="{{ url_for('cpanel.services') }}"><i class="bi bi-gear-wide-connected"></i> Services</a>
+    <a href="{{ url_for('cpanel.terminal') }}"><i class="bi bi-terminal"></i> Terminal</a>
+</div>
+
+<div class="db-layout">
+    <!-- Table List -->
+    <div class="table-sidebar">
+        <h4><i class="bi bi-table"></i> Tables</h4>
+        {% for t in tables %}
+        <a href="{{ url_for('cpanel.database_browser', table=t) }}"
+            class="table-link {{ 'active' if t == selected_table else '' }}">
+            <i class="bi bi-grid-3x3"></i> {{ t }}
+        </a>
+        {% endfor %}
+        {% if not tables %}
+        <p style="color:#7a7590; font-size:0.85rem;">No tables found</p>
+        {% endif %}
+    </div>
+
+    <!-- Table Data -->
+    <div class="db-content">
+        {% if table_data %}
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <h3 style="color:#e0dce8; margin:0; font-size:1.1rem;">
+                <i class="bi bi-grid-3x3" style="color:#a855f7;"></i> {{ table_data.name }}
+                <span style="color:#7a7590; font-size:0.85rem; font-weight:400;">· {{ table_data.total_rows }}
+                    rows</span>
+            </h3>
+        </div>
+
+        <!-- Columns info -->
+        <div style="margin-bottom:10px; display:flex; gap:6px; flex-wrap:wrap;">
+            {% for col in table_data.columns %}
+            <span
+                style="background:rgba(168,85,247,0.15); color:#c8c4d8; padding:3px 10px; border-radius:6px; font-size:0.75rem;">
+                {{ col.name }} <span style="color:#7a7590;">{{ col.type }}</span>
+            </span>
+            {% endfor %}
+        </div>
+
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        {% for col in table_data.columns %}
+                        <th>{{ col.name }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in table_data.rows %}
+                    <tr>
+                        {% for col in table_data.columns %}
+                        <td title="{{ row[col.name] }}">{{ row[col.name] }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination-bar">
+            <span>Page {{ table_data.page }} of {{ table_data.total_pages }}</span>
+            <div style="display:flex; gap:8px;">
+                {% if table_data.page > 1 %}
+                <a href="{{ url_for('cpanel.database_browser', table=selected_table, page=table_data.page-1) }}">←
+                    Prev</a>
+                {% endif %}
+                {% if table_data.page < table_data.total_pages %} <a
+                    href="{{ url_for('cpanel.database_browser', table=selected_table, page=table_data.page+1) }}">Next
+                    →</a>
+                    {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <div style="text-align:center; padding:60px 20px; color:#7a7590;">
+            <i class="bi bi-database" style="font-size:3rem; display:block; margin-bottom:12px; opacity:0.3;"></i>
+            Select a table from the sidebar to browse its data.
+        </div>
+        {% endif %}
+
+        <!-- SQL Query -->
+        <div class="sql-section">
+            <h4 style="color:#e0dce8; font-size:0.95rem; margin-bottom:10px;"><i class="bi bi-code-square"></i> SQL
+                Query</h4>
+            <textarea class="sql-input" id="sqlQuery"
+                placeholder="SELECT * FROM submissions LIMIT 10">SELECT * FROM submissions ORDER BY id DESC LIMIT 10</textarea>
+            <div style="margin-top:8px;">
+                <button onclick="runQuery()" class="btn btn-sm btn-outline-primary"><i class="bi bi-play"></i>
+                    Execute</button>
+                <span style="color:#7a7590; font-size:0.8rem; margin-left:8px;">Only SELECT queries allowed</span>
+            </div>
+            <div class="query-result" id="queryResult" style="display:none;"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    async function runQuery() {
+        const query = document.getElementById('sqlQuery').value.trim();
+        const resultDiv = document.getElementById('queryResult');
+        if (!query) return;
+
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = '<span style="color:#7a7590;">Executing...</span>';
+
+        try {
+            const resp = await fetch('{{ url_for("cpanel.database_query") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': '{{ csrf_token() }}'
+                },
+                body: 'query=' + encodeURIComponent(query)
+            });
+            const data = await resp.json();
+
+            if (data.error) {
+                resultDiv.innerHTML = `<span style="color:#ff5252;">Error: ${data.error}</span>`;
+                return;
+            }
+
+            if (!data.rows.length) {
+                resultDiv.innerHTML = '<span style="color:#7a7590;">No results</span>';
+                return;
+            }
+
+            let html = `<div style="margin-bottom:6px;color:#7a7590;">${data.count} rows</div>`;
+            html += '<table style="width:100%;border-collapse:collapse;"><thead><tr>';
+            data.columns.forEach(c => {
+                html += `<th style="padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.1);color:#7a7590;font-size:0.75rem;text-align:left;">${c}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+            data.rows.forEach(row => {
+                html += '<tr>';
+                data.columns.forEach(c => {
+                    const val = row[c] != null ? String(row[c]).substring(0, 100) : 'NULL';
+                    html += `<td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.8rem;">${val}</td>`;
+                });
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+            resultDiv.innerHTML = html;
+        } catch (e) {
+            resultDiv.innerHTML = `<span style="color:#ff5252;">Error: ${e.message}</span>`;
+        }
+    }
+</script>
+{% endblock %}

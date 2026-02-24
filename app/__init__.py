@@ -64,11 +64,13 @@ def create_app(config_name=None):
     from app.routes.admin import admin_bp
     from app.routes.api import api_bp
     from app.routes.webhook import webhook_bp
+    from app.routes.cpanel import cpanel_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(admin_bp, url_prefix='/admin')
     app.register_blueprint(api_bp, url_prefix='/api')
     app.register_blueprint(webhook_bp, url_prefix='/webhook')
+    app.register_blueprint(cpanel_bp, url_prefix='/admin')
 
     # Exempt webhook from CSRF
     csrf.exempt(webhook_bp)

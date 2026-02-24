@@ -1,0 +1,160 @@
+{% extends "admin/base.html" %}
+{% block title %}Server Panel — Services{% endblock %}
+
+{% block extra_css %}
+<style>
+    .cpanel-nav {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+    }
+
+    .cpanel-nav a {
+        padding: 10px 18px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.06);
+        color: #c8c4d8;
+        text-decoration: none;
+        font-size: 0.9rem;
+        font-weight: 500;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .cpanel-nav a:hover,
+    .cpanel-nav a.active {
+        background: linear-gradient(135deg, #6c5ce7, #a855f7);
+        color: #fff;
+    }
+
+    .service-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 16px;
+    }
+
+    .service-card {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 14px;
+        padding: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .service-info h4 {
+        color: #e0dce8;
+        margin: 0 0 4px 0;
+        font-size: 1rem;
+    }
+
+    .service-status {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+
+    .status-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    .status-active .status-dot {
+        background: #00e676;
+        box-shadow: 0 0 8px rgba(0, 230, 118, 0.4);
+    }
+
+    .status-active .status-text {
+        color: #00e676;
+    }
+
+    .status-inactive .status-dot {
+        background: #ff5252;
+        box-shadow: 0 0 8px rgba(255, 82, 82, 0.4);
+    }
+
+    .status-inactive .status-text {
+        color: #ff5252;
+    }
+
+    .status-unknown .status-dot {
+        background: #7a7590;
+    }
+
+    .status-unknown .status-text {
+        color: #7a7590;
+    }
+
+    .service-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-header">
+    <h1><i class="bi bi-gear-wide-connected"></i> Services</h1>
+    <p>Monitor and manage system services</p>
+</div>
+
+<div class="cpanel-nav">
+    <a href="{{ url_for('cpanel.dashboard') }}"><i class="bi bi-speedometer2"></i> Monitor</a>
+    <a href="{{ url_for('cpanel.file_manager') }}"><i class="bi bi-folder2-open"></i> Files</a>
+    <a href="{{ url_for('cpanel.database_browser') }}"><i class="bi bi-database"></i> Database</a>
+    <a href="{{ url_for('cpanel.log_viewer') }}"><i class="bi bi-journal-text"></i> Logs</a>
+    <a href="{{ url_for('cpanel.services') }}" class="active"><i class="bi bi-gear-wide-connected"></i> Services</a>
+    <a href="{{ url_for('cpanel.terminal') }}"><i class="bi bi-terminal"></i> Terminal</a>
+</div>
+
+<div class="service-grid">
+    {% for svc in services %}
+    <div class="service-card">
+        <div class="service-info">
+            <h4>
+                {% if svc.name == 'nginx' %}<i class="bi bi-globe" style="color:#00d4ff;"></i>
+                {% elif svc.name == 'instagrampost' %}<i class="bi bi-instagram" style="color:#e94560;"></i>
+                {% elif svc.name == 'postgresql' %}<i class="bi bi-database" style="color:#336791;"></i>
+                {% elif svc.name == 'redis-server' %}<i class="bi bi-lightning" style="color:#dc382d;"></i>
+                {% elif svc.name == 'gunicorn' %}<i class="bi bi-arrow-repeat" style="color:#00e676;"></i>
+                {% else %}<i class="bi bi-gear" style="color:#7a7590;"></i>{% endif %}
+                {{ svc.name }}
+            </h4>
+            <div
+                class="service-status {{ 'status-active' if svc.status == 'active' else 'status-inactive' if svc.status in ['inactive','failed'] else 'status-unknown' }}">
+                <span class="status-dot"></span>
+                <span class="status-text">{{ svc.status }}</span>
+            </div>
+        </div>
+        <div class="service-actions">
+            {% if svc.name in ['instagrampost', 'nginx'] %}
+            <form method="POST" action="{{ url_for('cpanel.restart_service', service_name=svc.name) }}"
+                onsubmit="return confirm('Restart {{ svc.name }}?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-sm btn-outline-warning" title="Restart">
+                    <i class="bi bi-arrow-clockwise"></i> Restart
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+
+    {% if not services %}
+    <div style="grid-column:1/-1; text-align:center; padding:60px; color:#7a7590;">
+        <i class="bi bi-gear-wide-connected"
+            style="font-size:3rem; display:block; margin-bottom:12px; opacity:0.3;"></i>
+        Service management is only available on Linux VPS.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

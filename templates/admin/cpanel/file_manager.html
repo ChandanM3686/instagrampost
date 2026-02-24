@@ -1,0 +1,248 @@
+{% extends "admin/base.html" %}
+{% block title %}Server Panel — File Manager{% endblock %}
+
+{% block extra_css %}
+<style>
+    .cpanel-nav {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+    }
+
+    .cpanel-nav a {
+        padding: 10px 18px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.06);
+        color: #c8c4d8;
+        text-decoration: none;
+        font-size: 0.9rem;
+        font-weight: 500;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .cpanel-nav a:hover,
+    .cpanel-nav a.active {
+        background: linear-gradient(135deg, #6c5ce7, #a855f7);
+        color: #fff;
+    }
+
+    .breadcrumb-bar {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 12px 18px;
+        background: rgba(255, 255, 255, 0.04);
+        border-radius: 10px;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+    }
+
+    .breadcrumb-bar a {
+        color: #a0a0b8;
+        text-decoration: none;
+        font-size: 0.85rem;
+    }
+
+    .breadcrumb-bar a:hover {
+        color: #fff;
+    }
+
+    .breadcrumb-bar span {
+        color: #555;
+        font-size: 0.8rem;
+    }
+
+    .file-actions {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 16px;
+        align-items: center;
+    }
+
+    .file-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .file-table th {
+        color: #7a7590;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 0.5px;
+        padding: 10px 14px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .file-table td {
+        padding: 10px 14px;
+        color: #c8c4d8;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .file-table tr:hover td {
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .file-icon {
+        font-size: 1.2rem;
+        margin-right: 8px;
+    }
+
+    .file-icon.dir {
+        color: #ffb300;
+    }
+
+    .file-icon.file {
+        color: #7a7590;
+    }
+
+    .file-name a {
+        color: #e0dce8;
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+    .file-name a:hover {
+        color: #a855f7;
+    }
+
+    .file-size {
+        color: #7a7590;
+        font-size: 0.85rem;
+    }
+
+    .file-actions-cell {
+        display: flex;
+        gap: 6px;
+    }
+
+    .file-actions-cell .btn {
+        padding: 4px 10px;
+        font-size: 0.8rem;
+    }
+
+    .upload-form {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 16px 20px;
+        margin-bottom: 16px;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .upload-form input[type="file"] {
+        color: #c8c4d8;
+        font-size: 0.85rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-header">
+    <h1><i class="bi bi-folder2-open"></i> File Manager</h1>
+    <p>Browse, edit, and manage server files</p>
+</div>
+
+<div class="cpanel-nav">
+    <a href="{{ url_for('cpanel.dashboard') }}"><i class="bi bi-speedometer2"></i> Monitor</a>
+    <a href="{{ url_for('cpanel.file_manager') }}" class="active"><i class="bi bi-folder2-open"></i> Files</a>
+    <a href="{{ url_for('cpanel.database_browser') }}"><i class="bi bi-database"></i> Database</a>
+    <a href="{{ url_for('cpanel.log_viewer') }}"><i class="bi bi-journal-text"></i> Logs</a>
+    <a href="{{ url_for('cpanel.services') }}"><i class="bi bi-gear-wide-connected"></i> Services</a>
+    <a href="{{ url_for('cpanel.terminal') }}"><i class="bi bi-terminal"></i> Terminal</a>
+</div>
+
+<!-- Breadcrumbs -->
+<div class="breadcrumb-bar">
+    <i class="bi bi-folder" style="color:#ffb300;"></i>
+    {% for bc in breadcrumbs %}
+    {% if not loop.last %}
+    <a href="{{ url_for('cpanel.file_manager', subpath=bc.path) }}">{{ bc.name }}</a>
+    <span>/</span>
+    {% else %}
+    <span style="color:#e0dce8; font-weight:600;">{{ bc.name }}</span>
+    {% endif %}
+    {% endfor %}
+</div>
+
+<!-- Upload -->
+<form class="upload-form" method="POST" action="{{ url_for('cpanel.upload_file') }}" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="target_path" value="{{ current_path }}">
+    <input type="file" name="file" required>
+    <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-cloud-upload"></i> Upload</button>
+</form>
+
+<!-- File List -->
+<div class="table-responsive">
+    <table class="file-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Size</th>
+                <th>Modified</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if current_path %}
+            <tr>
+                <td colspan="4">
+                    <i class="bi bi-arrow-up-short file-icon dir"></i>
+                    <a href="{{ url_for('cpanel.file_manager', subpath='/'.join(current_path.split('/')[:-1])) }}"
+                        style="color:#ffb300;">..</a>
+                </td>
+            </tr>
+            {% endif %}
+            {% for item in items %}
+            <tr>
+                <td class="file-name">
+                    {% if item.is_dir %}
+                    <i class="bi bi-folder-fill file-icon dir"></i>
+                    <a href="{{ url_for('cpanel.file_manager', subpath=item.path) }}">{{ item.name }}</a>
+                    {% else %}
+                    <i class="bi bi-file-earmark file-icon file"></i>
+                    <a href="{{ url_for('cpanel.file_manager', subpath=item.path) }}">{{ item.name }}</a>
+                    {% endif %}
+                </td>
+                <td class="file-size">
+                    {% if item.is_dir %}—
+                    {% elif item.size > 1048576 %}{{ "%.1f"|format(item.size / 1048576) }} MB
+                    {% elif item.size > 1024 %}{{ "%.1f"|format(item.size / 1024) }} KB
+                    {% else %}{{ item.size }} B{% endif %}
+                </td>
+                <td class="file-size">{{ item.modified }}</td>
+                <td class="file-actions-cell">
+                    {% if not item.is_dir %}
+                    <a href="{{ url_for('cpanel.download_file', subpath=item.path) }}"
+                        class="btn btn-outline-secondary btn-sm" title="Download">
+                        <i class="bi bi-download"></i>
+                    </a>
+                    {% endif %}
+                    <form method="POST" action="{{ url_for('cpanel.delete_file', subpath=item.path) }}"
+                        style="display:inline;" onsubmit="return confirm('Delete {{ item.name }}?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not items and not current_path %}
+            <tr>
+                <td colspan="4" class="text-center" style="color:#7a7590; padding:40px;">Empty directory</td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
