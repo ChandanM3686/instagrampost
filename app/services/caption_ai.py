@@ -166,9 +166,11 @@ Generate ONLY the caption text. No explanations."""
             return {'success': False, 'error': str(e)}
 
     def _get_timestamp(self):
-        """Get current timestamp in Winnipeg SPKR format."""
+        """Get current timestamp in Winnipeg SPKR format using Regina, SK timezone."""
         import datetime
-        now = datetime.datetime.now()
+        from zoneinfo import ZoneInfo
+        regina_tz = ZoneInfo('America/Regina')
+        now = datetime.datetime.now(tz=regina_tz)
         day = now.day
         month = now.strftime('%b')
         hour = now.strftime('%I:%M%p').lower().lstrip('0')
