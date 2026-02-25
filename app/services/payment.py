@@ -115,9 +115,9 @@ class PaymentService:
             )
             db.session.add(payment)
 
-        # Update submission status
+        # Update submission status — promo posts auto-approve after payment
         if submission.status == 'payment_pending':
-            submission.status = 'pending'
+            submission.status = 'approved'
 
         db.session.commit()
         logger.info(f'Payment completed for submission {submission_id}')

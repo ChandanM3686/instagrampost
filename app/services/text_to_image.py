@@ -80,15 +80,19 @@ COLOR_THEMES = [
 
 
 def _get_font(size, bold=False):
-    """Try to load a nice font, fall back to default."""
+    """Try to load a nice font, fall back gracefully. Ensures text is NEVER tiny."""
     font_names = [
-        # Windows
-        'C:/Windows/Fonts/seguisb.ttf' if bold else 'C:/Windows/Fonts/segoeui.ttf',
-        'C:/Windows/Fonts/arialbd.ttf' if bold else 'C:/Windows/Fonts/arial.ttf',
-        # Linux
+        # Linux (VPS/Ubuntu/Debian) — most common
         '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf' if bold else '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
         '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf' if bold else '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
         '/usr/share/fonts/truetype/freefont/FreeSansBold.ttf' if bold else '/usr/share/fonts/truetype/freefont/FreeSans.ttf',
+        '/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf' if bold else '/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf',
+        '/usr/share/fonts/truetype/ubuntu/Ubuntu-Bold.ttf' if bold else '/usr/share/fonts/truetype/ubuntu/Ubuntu-Regular.ttf',
+        '/usr/share/fonts/TTF/DejaVuSans-Bold.ttf' if bold else '/usr/share/fonts/TTF/DejaVuSans.ttf',
+        '/usr/share/fonts/dejavu-sans-fonts/DejaVuSans-Bold.ttf' if bold else '/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf',
+        # Windows
+        'C:/Windows/Fonts/seguisb.ttf' if bold else 'C:/Windows/Fonts/segoeui.ttf',
+        'C:/Windows/Fonts/arialbd.ttf' if bold else 'C:/Windows/Fonts/arial.ttf',
     ]
     for font_path in font_names:
         if os.path.exists(font_path):
@@ -96,9 +100,22 @@ def _get_font(size, bold=False):
                 return ImageFont.truetype(font_path, size)
             except Exception:
                 continue
+
+    # Try generic font names (system-searchable)
+    for font_name in ['DejaVuSans-Bold.ttf', 'DejaVuSans.ttf', 'arial.ttf', 'Arial.ttf',
+                       'FreeSansBold.ttf', 'FreeSans.ttf', 'LiberationSans-Bold.ttf']:
+        try:
+            return ImageFont.truetype(font_name, size)
+        except Exception:
+            continue
+
+    # Last resort — use Pillow's built-in default but LOG a warning
+    logger.warning(f'No TrueType fonts found on system! Text may appear small. '
+                   f'Install fonts: apt-get install -y fonts-dejavu-core fonts-liberation')
     try:
-        return ImageFont.truetype("arial.ttf", size)
-    except Exception:
+        return ImageFont.load_default(size=size)
+    except TypeError:
+        # Older Pillow versions don't support size parameter
         return ImageFont.load_default()
 
 

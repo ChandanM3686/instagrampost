@@ -6,6 +6,7 @@ import os
 import uuid
 import logging
 import traceback
+import datetime
 import requests
 from flask import (
     Blueprint, render_template, request, redirect,
@@ -13,7 +14,7 @@ from flask import (
 )
 from werkzeug.utils import secure_filename
 from app import db, limiter
-from app.models import Submission, Payment, SystemSetting
+from app.models import Submission, Payment, SystemSetting, BlacklistedKeyword
 from app.services.moderation import ModerationEngine, compute_image_hash
 
 logger = logging.getLogger(__name__)
@@ -51,12 +52,17 @@ def verify_recaptcha(token):
 
 @main_bp.route('/')
 def index():
-    """Homepage with submission form."""
+    """Homepage with submission form and published posts feed."""
     recaptcha_key = current_app.config.get('RECAPTCHA_SITE_KEY', '')
     stripe_key = current_app.config.get('STRIPE_PUBLISHABLE_KEY', '')
+    # Fetch recently published posts for the feed
+    published_posts = Submission.query.filter_by(status='published').order_by(
+        Submission.published_at.desc()
+    ).limit(30).all()
     return render_template('index.html',
                            recaptcha_key=recaptcha_key,
-                           stripe_key=stripe_key)
+                           stripe_key=stripe_key,
+                           published_posts=published_posts)
 
 
 @main_bp.route('/submit', methods=['POST'])
@@ -80,6 +86,87 @@ def submit():
         if not caption:
             flash('Caption is required.', 'error')
             return redirect(url_for('main.index'))
+
+        # ── SERVER-SIDE CONTENT MODERATION — block before saving anything ──
+        # 1. Profanity check
+        from better_profanity import profanity
+        if profanity.contains_profanity(caption):
+            flash('🚫 Your content contains inappropriate language and cannot be submitted.', 'error')
+            return redirect(url_for('main.index'))
+
+        # 2. Built-in dangerous phrases check (works without any API)
+        import re as _re
+        DANGEROUS_PHRASES = [
+            # Drugs/illegal substances
+            r'sell(?:ing)?\s+drugs?', r'buy(?:ing)?\s+drugs?', r'drug\s+deal', r'weed\s+for\s+sale',
+            r'cocaine', r'heroin', r'meth(?:amphetamine)?', r'fentanyl', r'ecstasy', r'lsd',
+            r'sell(?:ing)?\s+weed', r'buy(?:ing)?\s+weed', r'sell(?:ing)?\s+pills?',
+            # Weapons
+            r'sell(?:ing)?\s+guns?', r'buy(?:ing)?\s+guns?', r'sell(?:ing)?\s+weapons?',
+            r'illegal\s+firearms?', r'buy(?:ing)?\s+firearms?',
+            # Violence
+            r'kill\s+(?:him|her|them|you|someone|people|all)', r'murder\s+(?:him|her|them|you|someone)',
+            r'shoot(?:ing)?\s+(?:up|people|someone)', r'bomb\s+threat', r'mass\s+shooting',
+            r'death\s+to', r'i\s+will\s+kill',
+            # Exploitation
+            r'child\s+(?:porn|exploitation)', r'human\s+trafficking', r'sex\s+trafficking',
+            r'underage', r'minors?\s+for\s+sale',
+            # Self-harm
+            r'how\s+to\s+(?:kill|harm)\s+(?:your|my)self', r'suicide\s+method',
+            # Hate speech
+            r'go\s+back\s+to\s+your\s+country', r'(?:white|black)\s+suprema',
+            r'ethnic\s+cleansing', r'genocide',
+            # Scams
+            r'send\s+(?:me\s+)?(?:your\s+)?(?:bank|credit\s+card|ssn|social\s+security)',
+            r'wire\s+(?:me\s+)?money', r'nigerian?\s+prince',
+        ]
+        caption_lower = caption.lower()
+        for pattern in DANGEROUS_PHRASES:
+            if _re.search(pattern, caption_lower):
+                flash('🚫 Your content contains prohibited material and cannot be submitted.', 'error')
+                logger.info(f'Submission blocked by dangerous phrase: pattern={pattern}')
+                return redirect(url_for('main.index'))
+
+        # 3. Admin blacklisted keywords check
+        blacklisted = BlacklistedKeyword.query.filter_by(is_active=True).all()
+        for bk in blacklisted:
+            if bk.keyword.lower() in caption_lower:
+                flash('🚫 Your content contains a restricted word and cannot be submitted.', 'error')
+                return redirect(url_for('main.index'))
+
+        # 4. LLM-based deep content check (Gemini) — catches nuanced violations
+        try:
+            gemini_key = current_app.config.get('GEMINI_API_KEY') or os.environ.get('GEMINI_API_KEY')
+            if gemini_key:
+                from google import genai
+                import json as _json
+                client = genai.Client(api_key=gemini_key)
+                mod_prompt = f"""You are a strict content moderation system. Analyze this Instagram caption and determine if it violates community guidelines.
+
+Check for: hate speech, racism, violence, threats, sexual content, harassment, bullying, illegal activities (drug selling, weapons), misinformation, self-harm references.
+
+Caption: "{caption}"
+
+Respond ONLY with JSON:
+- Safe: {{"flagged": false}}
+- Violation: {{"flagged": true, "reason": "Brief explanation"}}"""
+
+                mod_response = client.models.generate_content(
+                    model='gemini-2.0-flash',
+                    contents=mod_prompt
+                )
+                mod_text = mod_response.text.strip()
+                if mod_text.startswith('```'):
+                    mod_text = mod_text.split('\n', 1)[-1].rsplit('```', 1)[0].strip()
+                mod_result = _json.loads(mod_text)
+                if mod_result.get('flagged'):
+                    reason = mod_result.get('reason', 'Content violates community guidelines.')
+                    flash(f'🚫 {reason}', 'error')
+                    logger.info(f'Submission blocked by LLM moderation: {reason}')
+                    return redirect(url_for('main.index'))
+        except Exception as llm_err:
+            logger.error(f'LLM server-side moderation error (non-fatal): {llm_err}')
+            # Don't block if LLM fails — other checks already passed
 
         # Email required for promotional posts (for payment tracking)
         if post_type == 'promotional' and not submitter_email:
@@ -150,17 +237,25 @@ def submit():
         # Compute image hash for duplicate detection (only for user-uploaded images)
         img_hash = compute_image_hash(image_path) if not is_text_only else None
 
-        # Determine promo amount
+        # Determine promo amount — fixed $2
         promo_amount = 0.0
         if post_type == 'promotional':
-            try:
-                promo_amount = float(request.form.get('promo_amount', '1.00'))
-                promo_amount = max(1.0, min(promo_amount, 2.0))  # Clamp to $1-$2
-            except ValueError:
-                promo_amount = 1.0
+            promo_amount = 2.0
+
+        # Check auto-publish setting
+        auto_publish_setting = SystemSetting.get('auto_publish', 'false')
+        require_approval = SystemSetting.get('require_approval', 'false')
 
         # Create submission
         import json as json_lib
+        # Determine initial status
+        if post_type == 'promotional':
+            initial_status = 'payment_pending'
+        elif auto_publish_setting == 'true' and require_approval != 'true':
+            initial_status = 'approved'  # Will auto-publish after moderation
+        else:
+            initial_status = 'pending'
+
         submission = Submission(
             submitter_name=submitter_name,
             submitter_email=submitter_email,
@@ -174,12 +269,12 @@ def submit():
             image_hash=img_hash,
             post_type=post_type,
             promo_amount=promo_amount,
-            status='payment_pending' if post_type == 'promotional' else 'pending'
+            status=initial_status
         )
         db.session.add(submission)
         db.session.commit()
 
-        logger.info(f'Submission created: #{submission.id} type={post_type} email={submitter_email}')
+        logger.info(f'Submission created: #{submission.id} type={post_type} status={initial_status} email={submitter_email}')
 
         # Run moderation checks
         try:
@@ -189,6 +284,45 @@ def submit():
                 logger.info(f'Submission {submission.id} flagged by moderation')
         except Exception as mod_err:
             logger.error(f'Moderation error (non-fatal): {mod_err}')
+            passed = True  # Don't block if moderation fails
+
+        # Auto-publish for free posts if enabled and passed moderation
+        if post_type != 'promotional' and initial_status == 'approved' and passed:
+            try:
+                from app.services.instagram import InstagramService
+                ig = InstagramService()
+                if ig.is_configured():
+                    # Generate AI caption
+                    try:
+                        from app.services.caption_ai import CaptionGenerator
+                        generator = CaptionGenerator()
+                        img_full_path = os.path.join(current_app.config['UPLOAD_FOLDER'], f'images/{image_filename}')
+                        ai_result = generator.generate_caption(
+                            image_path=img_full_path,
+                            user_caption=submission.caption,
+                            style='engaging',
+                            submission_id=submission.id
+                        )
+                        if ai_result.get('success'):
+                            submission.caption = ai_result['caption']
+                            db.session.commit()
+                    except Exception as ai_err:
+                        logger.error(f'AI caption error (non-fatal): {ai_err}')
+
+                    img_full_path = os.path.join(current_app.config['UPLOAD_FOLDER'], submission.image_path)
+                    result = ig.publish_from_local(img_full_path, submission.caption)
+                    if result.get('success'):
+                        submission.status = 'published'
+                        submission.published_at = datetime.datetime.utcnow()
+                        submission.instagram_post_id = result.get('media_id')
+                        db.session.commit()
+                        logger.info(f'Auto-published submission #{submission.id}')
+                    else:
+                        logger.error(f'Auto-publish failed for #{submission.id}: {result.get("error")}')
+                else:
+                    logger.warning('Instagram API not configured, skipping auto-publish')
+            except Exception as pub_err:
+                logger.error(f'Auto-publish error: {pub_err}')
 
         # If promotional, redirect to Stripe
         if post_type == 'promotional':
@@ -196,17 +330,17 @@ def submit():
                 import stripe
                 stripe.api_key = current_app.config['STRIPE_SECRET_KEY']
 
-                logger.info(f'Creating Stripe checkout for submission #{submission.id}, amount=${promo_amount}')
+                logger.info(f'Creating Stripe checkout for submission #{submission.id}, amount=$2.00')
 
                 session = stripe.checkout.Session.create(
                     payment_method_types=['card'],
                     line_items=[{
                         'price_data': {
                             'currency': 'usd',
-                            'unit_amount': int(promo_amount * 100),
+                            'unit_amount': 200,  # $2.00
                             'product_data': {
                                 'name': 'SasksVoice Promotional Post',
-                                'description': f'Promotional post #{submission.id}',
+                                'description': f'Instant publish — promotional post #{submission.id}',
                             },
                         },
                         'quantity': 1,
@@ -237,7 +371,6 @@ def submit():
             except Exception as stripe_err:
                 logger.error(f'Stripe error: {stripe_err}')
                 logger.error(traceback.format_exc())
-                # Still save the submission, just mark it
                 flash(f'Payment setup failed: {str(stripe_err)}. Your submission is saved.', 'error')
                 return redirect(url_for('main.index'))
 
@@ -259,18 +392,66 @@ def success():
 
 @main_bp.route('/payment/success')
 def payment_success():
-    """Payment success redirect page."""
+    """Payment success redirect page — auto-publish promo posts."""
     session_id = request.args.get('session_id')
     if session_id:
-        # Update payment status
         try:
             payment = Payment.query.filter_by(stripe_session_id=session_id).first()
             if payment:
                 payment.status = 'completed'
                 submission = Submission.query.get(payment.submission_id)
                 if submission and submission.status == 'payment_pending':
-                    submission.status = 'pending'
-                db.session.commit()
+                    # Promotional posts auto-publish immediately after payment
+                    submission.status = 'approved'
+                    db.session.commit()
+                    logger.info(f'Payment confirmed for submission #{submission.id}, auto-publishing...')
+
+                    # Auto-publish to Instagram
+                    try:
+                        from app.services.instagram import InstagramService
+                        ig = InstagramService()
+
+                        if ig.is_configured():
+                            # Generate AI caption
+                            try:
+                                from app.services.caption_ai import CaptionGenerator
+                                generator = CaptionGenerator()
+                                img_path = os.path.join(
+                                    current_app.config['UPLOAD_FOLDER'],
+                                    submission.image_path
+                                )
+                                ai_result = generator.generate_caption(
+                                    image_path=img_path,
+                                    user_caption=submission.caption,
+                                    style='engaging',
+                                    submission_id=submission.id
+                                )
+                                if ai_result.get('success'):
+                                    submission.caption = ai_result['caption']
+                                    db.session.commit()
+                            except Exception as ai_err:
+                                logger.error(f'AI caption error (non-fatal): {ai_err}')
+
+                            img_path = os.path.join(
+                                current_app.config['UPLOAD_FOLDER'],
+                                submission.image_path
+                            )
+                            result = ig.publish_from_local(img_path, submission.caption)
+                            if result.get('success'):
+                                submission.status = 'published'
+                                submission.published_at = datetime.datetime.utcnow()
+                                submission.instagram_post_id = result.get('media_id')
+                                db.session.commit()
+                                logger.info(f'Promo post #{submission.id} auto-published to Instagram!')
+                            else:
+                                logger.error(f'Auto-publish failed for promo #{submission.id}: {result.get("error")}')
+                        else:
+                            logger.warning('Instagram API not configured, promo post saved but not published')
+                    except Exception as pub_err:
+                        logger.error(f'Promo auto-publish error: {pub_err}')
+                else:
+                    db.session.commit()
+
                 logger.info(f'Payment confirmed via redirect for session {session_id}')
         except Exception as e:
             logger.error(f'Error updating payment on redirect: {e}')
@@ -304,6 +485,114 @@ def about():
 @main_bp.route('/terms')
 def terms():
     return render_template('terms.html')
+
+
+@main_bp.route('/api/check-content', methods=['POST'])
+@limiter.limit("30 per minute")
+def check_content():
+    """Real-time content moderation using LLM (Gemini) — checks caption before submission."""
+    try:
+        data = request.get_json()
+        caption = (data or {}).get('caption', '').strip()
+
+        if not caption or len(caption) < 5:
+            return jsonify({'flagged': False})
+
+        # First, quick local checks (profanity, blacklist)
+        from better_profanity import profanity
+        if profanity.contains_profanity(caption):
+            return jsonify({
+                'flagged': True,
+                'reason': '🚫 Your content contains inappropriate language and violates our community guidelines. Please revise your caption.'
+            })
+
+        # Check dangerous phrases (same list as server-side blocking)
+        import re as _re
+        DANGEROUS_PHRASES = [
+            r'sell(?:ing)?\s+drugs?', r'buy(?:ing)?\s+drugs?', r'drug\s+deal', r'weed\s+for\s+sale',
+            r'cocaine', r'heroin', r'meth(?:amphetamine)?', r'fentanyl', r'ecstasy', r'lsd',
+            r'sell(?:ing)?\s+weed', r'buy(?:ing)?\s+weed', r'sell(?:ing)?\s+pills?',
+            r'sell(?:ing)?\s+guns?', r'buy(?:ing)?\s+guns?', r'sell(?:ing)?\s+weapons?',
+            r'illegal\s+firearms?', r'buy(?:ing)?\s+firearms?',
+            r'kill\s+(?:him|her|them|you|someone|people|all)', r'murder\s+(?:him|her|them|you|someone)',
+            r'shoot(?:ing)?\s+(?:up|people|someone)', r'bomb\s+threat', r'mass\s+shooting',
+            r'death\s+to', r'i\s+will\s+kill',
+            r'child\s+(?:porn|exploitation)', r'human\s+trafficking', r'sex\s+trafficking',
+            r'underage', r'minors?\s+for\s+sale',
+            r'how\s+to\s+(?:kill|harm)\s+(?:your|my)self', r'suicide\s+method',
+            r'go\s+back\s+to\s+your\s+country', r'(?:white|black)\s+suprema',
+            r'ethnic\s+cleansing', r'genocide',
+            r'send\s+(?:me\s+)?(?:your\s+)?(?:bank|credit\s+card|ssn|social\s+security)',
+            r'wire\s+(?:me\s+)?money', r'nigerian?\s+prince',
+        ]
+        caption_lower = caption.lower()
+        for pattern in DANGEROUS_PHRASES:
+            if _re.search(pattern, caption_lower):
+                return jsonify({
+                    'flagged': True,
+                    'reason': '🚫 Your content contains prohibited material and cannot be submitted.'
+                })
+
+        # Check blacklisted keywords
+        blacklisted = BlacklistedKeyword.query.filter_by(is_active=True).all()
+        for bk in blacklisted:
+            if bk.keyword.lower() in caption_lower:
+                return jsonify({
+                    'flagged': True,
+                    'reason': f'🚫 Your content contains a restricted word ("{bk.keyword}") and cannot be submitted.'
+                })
+
+        # LLM-based deep check using Gemini
+        try:
+            gemini_key = current_app.config.get('GEMINI_API_KEY') or os.environ.get('GEMINI_API_KEY')
+            if gemini_key:
+                from google import genai
+                client = genai.Client(api_key=gemini_key)
+                prompt = f"""You are a content moderation system. Analyze this Instagram caption and determine if it violates any community guidelines.
+
+Check for:
+1. Hate speech, racism, discrimination
+2. Violence or threats
+3. Sexual/explicit content
+4. Harassment or bullying
+5. Misinformation or dangerous advice
+6. Illegal activities promotion
+7. Self-harm or suicide references
+
+Caption to check: "{caption}"
+
+Respond ONLY with a JSON object:
+- If safe: {{"flagged": false}}
+- If violated: {{"flagged": true, "reason": "Brief explanation of the violation"}}
+
+IMPORTANT: Respond with ONLY the JSON, no markdown or extra text."""
+
+                response = client.models.generate_content(
+                    model='gemini-2.0-flash',
+                    contents=prompt
+                )
+
+                import json
+                response_text = response.text.strip()
+                # Clean markdown if present
+                if response_text.startswith('```'):
+                    response_text = response_text.split('\n', 1)[-1].rsplit('```', 1)[0].strip()
+
+                result = json.loads(response_text)
+                if result.get('flagged'):
+                    return jsonify({
+                        'flagged': True,
+                        'reason': f"🚫 {result.get('reason', 'Content violates community guidelines.')}"
+                    })
+        except Exception as llm_err:
+            logger.error(f'LLM moderation check error: {llm_err}')
+            # Don't block submission if LLM fails
+
+        return jsonify({'flagged': False})
+
+    except Exception as e:
+        logger.error(f'Content check error: {e}')
+        return jsonify({'flagged': False})
 
 
 @main_bp.errorhandler(404)
