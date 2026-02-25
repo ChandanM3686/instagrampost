@@ -406,11 +406,14 @@ def generate_text_image(text, output_dir, branding_text="@sasksvoice"):
 
         draw.text((branding_x, branding_y), branding_text, fill='#7a7590', font=branding_font)
 
-        # --- Save ---
+        # --- Save as JPEG (Instagram requires JPEG, not PNG) ---
         os.makedirs(output_dir, exist_ok=True)
-        filename = f'{uuid.uuid4().hex}_textpost.png'
+        filename = f'{uuid.uuid4().hex}_textpost.jpg'
         filepath = os.path.join(output_dir, filename)
-        img.save(filepath, 'PNG', quality=95)
+        # Ensure RGB mode (no alpha channel)
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        img.save(filepath, 'JPEG', quality=95)
 
         logger.info(f'Text image generated: {filepath} ({len(text)} chars, theme={theme["name"]})')
         return {

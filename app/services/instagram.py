@@ -120,7 +120,8 @@ class InstagramService:
     def upload_image_to_imgbb(self, local_image_path):
         """
         Upload a local image to imgbb.com for free public hosting.
-        Returns a public URL that Instagram can access.
+        Returns a direct public image URL that Instagram can access.
+        Converts to JPEG first to ensure Instagram compatibility.
         """
         imgbb_key = current_app.config.get('IMGBB_API_KEY', '')
 
@@ -128,7 +129,21 @@ class InstagramService:
             return {'success': False, 'error': 'IMGBB_API_KEY not set in .env. Get a free key from https://api.imgbb.com/'}
 
         try:
-            with open(local_image_path, 'rb') as f:
+            # Convert to JPEG if needed (Instagram prefers JPEG)
+            upload_path = local_image_path
+            try:
+                from PIL import Image as PILImage
+                img = PILImage.open(local_image_path)
+                if img.mode in ('RGBA', 'P', 'LA'):
+                    img = img.convert('RGB')
+                if not local_image_path.lower().endswith(('.jpg', '.jpeg')):
+                    upload_path = local_image_path.rsplit('.', 1)[0] + '_upload.jpg'
+                    img.save(upload_path, 'JPEG', quality=95)
+                    logger.info(f'Converted image to JPEG for upload: {upload_path}')
+            except Exception as conv_err:
+                logger.warning(f'Image conversion warning (using original): {conv_err}')
+
+            with open(upload_path, 'rb') as f:
                 image_data = base64.b64encode(f.read()).decode('utf-8')
 
             response = requests.post(IMGBB_API_URL, data={
@@ -139,7 +154,9 @@ class InstagramService:
 
             data = response.json()
             if data.get('success'):
-                public_url = data['data']['url']
+                # Use direct image URL — NOT the page URL
+                # Instagram needs a direct link to the image file
+                public_url = data['data'].get('display_url') or data['data'].get('image', {}).get('url') or data['data']['url']
                 logger.info(f'Image uploaded to imgbb: {public_url}')
                 return {'success': True, 'url': public_url}
             else:
