@@ -155,7 +155,7 @@ Respond ONLY with JSON:
 - Violation: {{"flagged": true, "reason": "Brief explanation"}}"""
 
                 mod_response = client.models.generate_content(
-                    model='gemini-2.0-flash',
+                    model='gemini-2.5-flash',
                     contents=mod_prompt
                 )
                 mod_text = mod_response.text.strip()
