@@ -312,9 +312,52 @@ Respond ONLY with JSON:
                     except Exception as ai_err:
                         logger.error(f'AI caption error (non-fatal): {ai_err}')
 
-                    img_full_path = os.path.join(current_app.config['UPLOAD_FOLDER'], submission.image_path)
-                    video_full_path = os.path.join(current_app.config['UPLOAD_FOLDER'], submission.video_path) if submission.video_path else None
-                    result = ig.publish_from_local(img_full_path, submission.caption, video_path=video_full_path)
+                    # Check if this is a carousel (multiple images)
+                    import json as json_lib2
+                    extra_imgs = json_lib2.loads(submission.extra_images) if submission.extra_images else []
+
+                    if extra_imgs:
+                        # CAROUSEL: Generate text image as first slide + all uploaded images
+                        all_carousel_paths = []
+
+                        # Generate text image from caption as first slide
+                        try:
+                            from app.services.text_to_image import generate_text_image
+                            text_img_result = generate_text_image(
+                                submission.caption or caption,
+                                os.path.join(current_app.config['UPLOAD_FOLDER'], 'images')
+                            )
+                            if text_img_result['success']:
+                                all_carousel_paths.append(text_img_result['path'])
+                                logger.info(f'Generated text image for carousel: {text_img_result["filename"]}')
+                        except Exception as text_err:
+                            logger.error(f'Text image gen error (non-fatal): {text_err}')
+
+                        # Add the main cover image
+                        all_carousel_paths.append(
+                            os.path.join(current_app.config['UPLOAD_FOLDER'], submission.image_path)
+                        )
+                        # Add extra images
+                        for extra_path in extra_imgs:
+                            all_carousel_paths.append(
+                                os.path.join(current_app.config['UPLOAD_FOLDER'], extra_path)
+                            )
+
+                        if len(all_carousel_paths) >= 2:
+                            result = ig.publish_carousel_from_local(
+                                all_carousel_paths, submission.caption
+                            )
+                        else:
+                            # Fallback to single image
+                            result = ig.publish_from_local(
+                                all_carousel_paths[0], submission.caption
+                            )
+                    else:
+                        # SINGLE IMAGE post
+                        img_full_path = os.path.join(current_app.config['UPLOAD_FOLDER'], submission.image_path)
+                        video_full_path = os.path.join(current_app.config['UPLOAD_FOLDER'], submission.video_path) if submission.video_path else None
+                        result = ig.publish_from_local(img_full_path, submission.caption, video_path=video_full_path)
+
                     if result.get('success'):
                         submission.status = 'published'
                         submission.published_at = datetime.datetime.utcnow()
@@ -327,6 +370,8 @@ Respond ONLY with JSON:
                     logger.warning('Instagram API not configured, skipping auto-publish')
             except Exception as pub_err:
                 logger.error(f'Auto-publish error: {pub_err}')
+                import traceback
+                logger.error(traceback.format_exc())
 
         # If promotional, redirect to Stripe
         if post_type == 'promotional':

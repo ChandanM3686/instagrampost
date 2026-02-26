@@ -19,3 +19,4 @@ WTForms==3.1.1
 email-validator==2.1.0
 celery==5.3.6
 redis==5.0.1
+google-genai>=1.0.0

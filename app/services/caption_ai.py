@@ -7,7 +7,11 @@ Uses the new google-genai SDK (v0.8+).
 
 import os
 import logging
-from google import genai
+try:
+    from google import genai
+    HAS_GENAI = True
+except ImportError:
+    HAS_GENAI = False
 from flask import current_app
 
 logger = logging.getLogger(__name__)
@@ -17,6 +21,8 @@ class CaptionGenerator:
     """Generate Instagram captions using Gemini AI with image analysis."""
 
     def __init__(self, api_key=None):
+        if not HAS_GENAI:
+            raise ValueError('google-genai package not installed. Run: pip install google-genai')
         self.api_key = api_key or os.environ.get('GEMINI_API_KEY', '')
         if not self.api_key:
             # Try loading from Flask config as fallback
