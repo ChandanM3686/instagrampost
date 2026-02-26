@@ -10,7 +10,7 @@ import datetime
 import requests
 from flask import (
     Blueprint, render_template, request, redirect,
-    url_for, flash, current_app, jsonify
+    url_for, flash, current_app, jsonify, send_from_directory
 )
 from werkzeug.utils import secure_filename
 from app import db, limiter
@@ -374,8 +374,17 @@ Respond ONLY with JSON:
                 flash(f'Payment setup failed: {str(stripe_err)}. Your submission is saved.', 'error')
                 return redirect(url_for('main.index'))
 
-        flash('Your post has been submitted successfully! It will be reviewed shortly.', 'success')
-        return redirect(url_for('main.success'))
+        # Determine final message based on what happened
+        if submission.status == 'published':
+            flash('🎉 Your post has been published to Instagram automatically!', 'success')
+            return redirect(url_for('main.success', auto_published='true'))
+        elif submission.status == 'approved':
+            # Auto-publish was attempted but failed — still approved, admin can publish manually
+            flash('✅ Your post has been approved and will be published shortly.', 'success')
+            return redirect(url_for('main.success'))
+        else:
+            flash('Your post has been submitted successfully! It will be reviewed shortly.', 'success')
+            return redirect(url_for('main.success'))
 
     except Exception as e:
         logger.error(f'Submission error: {e}')
@@ -387,7 +396,8 @@ Respond ONLY with JSON:
 @main_bp.route('/success')
 def success():
     """Submission success page."""
-    return render_template('success.html')
+    auto_published = request.args.get('auto_published') == 'true'
+    return render_template('success.html', auto_published=auto_published)
 
 
 @main_bp.route('/payment/success')
@@ -485,6 +495,13 @@ def about():
 @main_bp.route('/terms')
 def terms():
     return render_template('terms.html')
+
+
+@main_bp.route('/uploads/<path:filepath>')
+def serve_public_media(filepath):
+    """Serve uploaded media publicly — needed for Instagram to fetch images."""
+    upload_dir = current_app.config['UPLOAD_FOLDER']
+    return send_from_directory(upload_dir, filepath)
 
 
 @main_bp.route('/api/check-content', methods=['POST'])

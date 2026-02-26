@@ -315,10 +315,46 @@ class InstagramService:
 
         return self.publish_container(container_id)
 
+    def _get_public_image_url(self, local_image_path):
+        """
+        Get a publicly accessible URL for the image.
+        
+        Strategy:
+        1. If PUBLIC_BASE_URL is set, serve from the app's /uploads/ route (preferred)
+        2. Fall back to imgbb upload
+        """
+        # Strategy 1: Use the app's own public URL (Instagram can fetch from our server)
+        public_base = current_app.config.get('PUBLIC_BASE_URL', '').strip().rstrip('/')
+        if public_base:
+            # Get the relative path from upload folder
+            upload_folder = current_app.config['UPLOAD_FOLDER']
+            if local_image_path.startswith(upload_folder):
+                rel_path = os.path.relpath(local_image_path, upload_folder).replace('\\', '/')
+            else:
+                # Just use the filename
+                rel_path = 'images/' + os.path.basename(local_image_path)
+
+            public_url = f'{public_base}/uploads/{rel_path}'
+            logger.info(f'Using public URL from server: {public_url}')
+
+            # Verify the URL is accessible
+            try:
+                head_resp = requests.head(public_url, timeout=10, allow_redirects=True)
+                if head_resp.status_code == 200:
+                    return {'success': True, 'url': public_url}
+                else:
+                    logger.warning(f'Public URL check failed (status {head_resp.status_code}), falling back to imgbb')
+            except Exception as e:
+                logger.warning(f'Public URL check failed ({e}), falling back to imgbb')
+
+        # Strategy 2: Upload to imgbb as fallback
+        logger.info(f'Uploading to imgbb: {local_image_path}')
+        return self.upload_image_to_imgbb(local_image_path)
+
     def publish_from_local(self, local_image_path, caption, video_path=None, collaborators=None):
         """
-        Full flow: upload local image to imgbb → create container → wait → publish.
-        This handles everything automatically — one-click publish.
+        Full flow: get public URL → create container → wait → publish.
+        Uses PUBLIC_BASE_URL to serve images directly (preferred over imgbb).
         collaborators: optional list of Instagram usernames to invite as collaborators.
         """
         if not self.is_configured():
@@ -328,18 +364,17 @@ class InstagramService:
         logger.info(f'Checking aspect ratio: {local_image_path}')
         fixed_image_path = self.fix_aspect_ratio(local_image_path)
 
-        # Step 2: Upload image to imgbb for a public URL
-        logger.info(f'Uploading image to imgbb: {fixed_image_path}')
-        upload_result = self.upload_image_to_imgbb(fixed_image_path)
-        if not upload_result['success']:
-            return upload_result
+        # Step 2: Get a publicly accessible URL for the image
+        url_result = self._get_public_image_url(fixed_image_path)
+        if not url_result['success']:
+            return url_result
 
-        public_url = upload_result['url']
-        logger.info(f'Image uploaded: {public_url}')
+        public_url = url_result['url']
+        logger.info(f'Public image URL: {public_url}')
 
         # Step 3: Publish via Instagram API
         if video_path:
-            # Upload video to imgbb too
+            # Videos must be uploaded to imgbb (can't stream from our server)
             video_upload = self.upload_image_to_imgbb(video_path)
             if video_upload['success']:
                 return self.publish_video(video_upload['url'], caption)
@@ -362,20 +397,20 @@ class InstagramService:
         if len(image_paths) > 10:
             image_paths = image_paths[:10]
 
-        # Step 1: Upload all images to imgbb and create child containers
+        # Step 1: Upload all images and create child containers
         child_container_ids = []
         for i, img_path in enumerate(image_paths):
             # Fix aspect ratio
             fixed_path = self.fix_aspect_ratio(img_path)
 
-            # Upload to imgbb
-            upload_result = self.upload_image_to_imgbb(fixed_path)
-            if not upload_result['success']:
-                logger.error(f'Failed to upload carousel image {i+1}: {upload_result.get("error")}')
-                return upload_result
+            # Get public URL (prefers PUBLIC_BASE_URL, falls back to imgbb)
+            url_result = self._get_public_image_url(fixed_path)
+            if not url_result['success']:
+                logger.error(f'Failed to get public URL for carousel image {i+1}: {url_result.get("error")}')
+                return url_result
 
             # Create child container (no caption on individual items)
-            child_result = self.create_carousel_item_container(upload_result['url'])
+            child_result = self.create_carousel_item_container(url_result['url'])
             if not child_result['success']:
                 logger.error(f'Failed to create carousel child container {i+1}: {child_result.get("error")}')
                 return child_result

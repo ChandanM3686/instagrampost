@@ -1,9 +1,18 @@
 {% extends "base.html" %}
-{% block title %}SasksVoice — Submission Successful{% endblock %}
+{% block title %}SasksVoice — {% if auto_published %}Published!{% else %}Submission Successful{% endif %}{% endblock %}
 
 {% block content %}
 <section class="success-page">
     <div class="success-card">
+        {% if auto_published %}
+        <div class="success-icon" style="color: #00e676;">
+            <i class="bi bi-instagram"></i>
+        </div>
+        <h1>Published to Instagram! 🎉</h1>
+        <p>Your post has been automatically published to our Instagram page.</p>
+        <p class="success-note">Check it out on <a href="https://instagram.com/sasksvoice" target="_blank"
+                style="color:#a78bfa;">@sasksvoice</a>!</p>
+        {% else %}
         <div class="success-icon">
             <i class="bi bi-check-circle-fill"></i>
         </div>
@@ -11,6 +20,7 @@
         <p>Your content has been received and is now being reviewed by our moderation team.</p>
         <p class="success-note">Once approved, it will be published to our Instagram page. This usually takes a few
             hours.</p>
+        {% endif %}
         <a href="{{ url_for('main.index') }}" class="success-cta">
             <i class="bi bi-plus-circle"></i> Submit Another Post
         </a>
