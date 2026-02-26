@@ -93,6 +93,20 @@ def create_app(config_name=None):
     import json
     app.jinja_env.filters['from_json'] = lambda s: json.loads(s) if s else []
 
+    # Error handlers
+    @app.errorhandler(413)
+    def request_entity_too_large(e):
+        from flask import flash, redirect, url_for
+        flash('File too large! Maximum upload size is 100MB.', 'error')
+        return redirect(url_for('main.index'))
+
+    @app.errorhandler(500)
+    def internal_server_error(e):
+        from flask import flash, redirect, url_for
+        app.logger.error(f'Internal Server Error: {e}')
+        flash('An internal error occurred. Please try again.', 'error')
+        return redirect(url_for('main.index'))
+
     return app
 
 

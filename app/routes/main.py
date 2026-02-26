@@ -313,7 +313,8 @@ Respond ONLY with JSON:
                         logger.error(f'AI caption error (non-fatal): {ai_err}')
 
                     img_full_path = os.path.join(current_app.config['UPLOAD_FOLDER'], submission.image_path)
-                    result = ig.publish_from_local(img_full_path, submission.caption)
+                    video_full_path = os.path.join(current_app.config['UPLOAD_FOLDER'], submission.video_path) if submission.video_path else None
+                    result = ig.publish_from_local(img_full_path, submission.caption, video_path=video_full_path)
                     if result.get('success'):
                         submission.status = 'published'
                         submission.published_at = datetime.datetime.utcnow()
