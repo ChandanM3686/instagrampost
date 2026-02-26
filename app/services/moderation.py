@@ -14,14 +14,17 @@ import re
 import json
 import hashlib
 import logging
-from better_profanity import profanity
+try:
+    from better_profanity import profanity
+    profanity.load_censor_words()
+    HAS_PROFANITY = True
+except ImportError:
+    HAS_PROFANITY = False
+
 from app.models import BlacklistedKeyword, ModerationLog, Submission
 from app import db
 
 logger = logging.getLogger(__name__)
-
-# Profanity filter setup
-profanity.load_censor_words()
 
 # Common spam patterns
 SPAM_PATTERNS = [
@@ -107,6 +110,9 @@ class ModerationEngine:
 
     def _check_profanity(self, text):
         """Check for profanity/harmful text."""
+        if not HAS_PROFANITY:
+            self._log_check('harmful_text', 'pass', 0.0, 'Profanity check skipped (library not installed)')
+            return
         if profanity.contains_profanity(text):
             censored = profanity.censor(text)
             self._log_check('harmful_text', 'fail', 1.0,

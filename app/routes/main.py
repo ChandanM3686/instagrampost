@@ -89,10 +89,13 @@ def submit():
 
         # ── SERVER-SIDE CONTENT MODERATION — block before saving anything ──
         # 1. Profanity check
-        from better_profanity import profanity
-        if profanity.contains_profanity(caption):
-            flash('🚫 Your content contains inappropriate language and cannot be submitted.', 'error')
-            return redirect(url_for('main.index'))
+        try:
+            from better_profanity import profanity
+            if profanity.contains_profanity(caption):
+                flash('🚫 Your content contains inappropriate language and cannot be submitted.', 'error')
+                return redirect(url_for('main.index'))
+        except ImportError:
+            logger.warning('better_profanity not installed, skipping profanity check')
 
         # 2. Built-in dangerous phrases check (works without any API)
         import re as _re
